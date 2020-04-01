@@ -18,7 +18,7 @@ from discord.ext import commands
 
 bot = commands.Bot(command_prefix='$')
 
-TOKEN = 'Njk0MjM5ODE5NDU0NDgwNDQ1.XoIv5Q.p7pYt1-B83TBeoKhmJiYt0MHG2k'
+TOKEN = 'Apparently a Discord token is private information, so I need to pull this info from an environment file instead.'
 PREFIX = '$'
 UNTYPED_STRESS = 'General'
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
