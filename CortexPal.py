@@ -14,14 +14,16 @@
 
 import discord
 import random
+import os
 from discord.ext import commands
 
-bot = commands.Bot(command_prefix='$')
-
-TOKEN = 'Apparently a Discord token is private information, so I need to pull this info from an environment file instead.'
 PREFIX = '$'
 UNTYPED_STRESS = 'General'
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
+
+load_dotenv()
+TOKEN = os.getenv('CORTEX_DISCORD_TOKEN')
+bot = commands.Bot(command_prefix='$')
 
 def get_matching_key(typed_key, stored_keys):
     match = None
