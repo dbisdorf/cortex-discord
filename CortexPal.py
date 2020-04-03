@@ -1,14 +1,10 @@
 # TO DO
 # Validate all die faces and give error if needed
-# Give error when mandatory key does not appear (like decrementing PP for non-existent character)
 # Master help command, and help for individual commands
 # Reduce repetition in command methods
-# Use list() instead of .keys() for dictionaries?
-# Constants for static messages?
-# "Giving" stress twice should add it together per game rules.
+# Constants for all static messages
 # Match verbs against synonym arrays.
 # Document synonyms in user help.
-# Move to an exception model of throwing errors.
 # Is there any point in using subcommands?
 # A straight array of CortexGames might not be the most efficient for sorting purposes
 # Auto-capitalizing for names of pools/stress/complications/assets/etc?
@@ -123,7 +119,7 @@ class DicePool:
 
     def remove(self, size, qty=1):
         self.dice[size] -= qty
-        if self.dice[size] < 0:
+        if self.dice[size] <= 0:
             del self.dice[size]
         return self.output()
 
@@ -137,6 +133,34 @@ class DicePool:
                 output += 'D{0} '.format(size)
             else:
                 output += '{0}D{1} '.format(self.dice[size], size)
+        return output
+
+class DicePools:
+    def __init__(self):
+        self.pools = {}
+
+    def is_empty(self):
+        return not self.pools
+
+    def add(self, name, size, qty=1):
+        key = get_matching_key(name, list(self.pools))
+        if not key:
+            self.pools[name] = DicePool()
+            key = name
+        output = self.pools[key].add(size, qty)
+        return '{0}: {1}'.format(key, output)
+
+    def remove(self, name, size, qty=1):
+        key = get_matching_key(name, list(self.pools))
+        output = self.pools[key].remove(size, qty)
+        return '{0}: {1}'.format(key, output)
+
+    def output(self):
+        output = ''
+        prefix = ''
+        for key in list(self.pools):
+            output += '{0}{1}: {2}'.format(prefix, key, self.pools[key].output())
+            prefix = '\n'
         return output
 
 class Resources:
@@ -223,9 +247,8 @@ class CortexGame:
         self.pinned_message = None
         self.complications = NamedDice('complication')
         self.plot_points = Resources('plot points')
-        self.doom_pool = DicePool()
+        self.pools = DicePools()
         self.stress = GroupedNamedDice()
-        self.hero_dice = Resources('hero dice')
         self.assets = NamedDice('asset')
 
     def output(self):
@@ -246,13 +269,9 @@ class CortexGame:
             output += '\n**Plot Points**\n'
             output += self.plot_points.output_all()
             output += '\n'
-        if not self.hero_dice.is_empty():
-            output += '\n**Hero Dice**\n'
-            output += self.hero_dice.output_all()
-            output += '\n'
-        if not self.doom_pool.is_empty():
-            output += '\n**Doom Pool**\n'
-            output += self.doom_pool.output()
+        if not self.pools.is_empty():
+            output += '\n**Dice Pools**\n'
+            output += self.pools.output()
             output += '\n'
         return output
 
@@ -356,7 +375,7 @@ class CortexPal(commands.Cog):
                 else:
                     results[die] = [roll]
             output = ''
-            sorted_keys = sorted(results.keys())
+            sorted_keys = sorted(list(results))
             for key in sorted_keys:
                 output += 'D{0} : {1}\n'.format(key, ', '.join(results[key]))
             await ctx.send(output)
@@ -364,22 +383,20 @@ class CortexPal(commands.Cog):
             await ctx.send(err)
 
     @commands.command()
-    async def doom(self, ctx, *args):
+    async def pool(self, ctx, *args):
         output = ''
         update_pin = False
         game = self.get_game_info(ctx)
         try:
             if not args:
-                output = 'Use the `$doom` command like this:\n`$doom give 6 8` (gives the doom pool a D6 and D8)\n`$doom spend 10` (spends a D10 from the doom pool)'
+                output = 'Use the `$pool` command like this:\n`$pool give Doom 6 8` (gives the Doom pool a D6 and D8)\n`$pool spend Doom 10` (spends a D10 from the Doom pool)'
             elif args[0] == 'give':
-                for arg in args[1:]:
-                    game.doom_pool.add(int(arg))
-                output = 'New doom pool: ' + game.doom_pool.output()
+                for arg in args[2:]:
+                    output = game.pools.add(args[1], int(arg))
                 update_pin = True
             elif args[0] == 'spend':
-                for arg in args[1:]:
-                    game.doom_pool.remove(int(arg))
-                output = 'New doom pool: ' + game.doom_pool.output()
+                for arg in args[2:]:
+                    output = game.pools.remove(args[1], int(arg))
                 update_pin = True
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
@@ -418,31 +435,6 @@ class CortexPal(commands.Cog):
                     else:
                         stress_name = args[2]
                     output = 'Stress for ' + game.stress.step_back(args[1], stress_name)
-                    update_pin = True
-            if update_pin and game.pinned_message:
-                await game.pinned_message.edit(content=game.output())
-            await ctx.send(output)
-        except CortexError as err:
-            await ctx.send(err)
-
-    @commands.command()
-    async def hero(self, ctx, *args):
-        output = ''
-        update_pin = False
-        try:
-            if not args:
-                output = 'Use the `$hero` command like this:\n`$hero give Alice 2` (gives Alice 2 hero dice)\n`$hero spend Alice` (spends one of Alice\'s hero dice)'
-            else:
-                game = self.get_game_info(ctx)
-                if len(args) > 2:
-                    qty = int(args[2])
-                else:
-                    qty = 1
-                if args[0] == 'give':
-                    output = 'Hero dice for ' + game.hero_dice.add(args[1], qty)
-                    update_pin = True
-                elif args[0] == 'spend':
-                    output = 'Hero dice for ' + game.hero_dice.remove(args[1], qty)
                     update_pin = True
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
