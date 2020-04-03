@@ -207,6 +207,7 @@ class GroupedNamedDice:
 
 class CortexGame:
     def __init__(self):
+        self.pinned_message = None
         self.complications = NamedDice()
         self.plot_points = Resources()
         self.doom_pool = DicePool()
@@ -246,7 +247,6 @@ class CortexPal(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.games = []
-        self.pinned_message = None
 
     def get_game_info(self, context):
         game_info = None
@@ -271,8 +271,8 @@ class CortexPal(commands.Cog):
             if pin.author == self.bot.user:
                 await pin.unpin()
         game = self.get_game_info(ctx)
-        self.pinned_message = await ctx.send(game.output())
-        await self.pinned_message.pin()
+        game.pinned_message = await ctx.send(game.output())
+        await game.pinned_message.pin()
 
     @commands.command()
     async def comp(self, ctx, *args):
@@ -295,8 +295,8 @@ class CortexPal(commands.Cog):
                 name = ' '.join(args[1:])
                 output = 'Stepped back: ' + game.complications.step_back(name)
                 update_pin = True
-            if update_pin:
-                await self.pinned_message.edit(content=game.output())
+            if update_pin and game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
@@ -319,8 +319,8 @@ class CortexPal(commands.Cog):
             elif args[0] == 'spend':
                 output = 'Plot points for ' + game.plot_points.remove(args[1], qty)
                 update_pin = True
-        if update_pin:
-            await self.pinned_message.edit(content=game.output())
+        if update_pin and game.pinned_message:
+            await game.pinned_message.edit(content=game.output())
         await ctx.send(output)
 
     @commands.command()
@@ -365,8 +365,8 @@ class CortexPal(commands.Cog):
                     game.doom_pool.remove(int(arg))
                 output = 'New doom pool: ' + game.doom_pool.output()
                 update_pin = True
-            if update_pin:
-                await self.pinned_message.edit(content=game.output())
+            if update_pin and game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
@@ -403,8 +403,8 @@ class CortexPal(commands.Cog):
                         stress_name = args[2]
                     output = 'Stress for ' + game.stress.step_back(args[1], stress_name)
                     update_pin = True
-            if update_pin:
-                await self.pinned_message.edit(content=game.output())
+            if update_pin and game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
@@ -428,8 +428,8 @@ class CortexPal(commands.Cog):
                 elif args[0] == 'spend':
                     output = 'Hero dice for ' + game.hero_dice.remove(args[1], qty)
                     update_pin = True
-            if update_pin:
-                await self.pinned_message.edit(content=game.output())
+            if update_pin and game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
@@ -455,8 +455,8 @@ class CortexPal(commands.Cog):
                 name = ' '.join(args[1:])
                 output = 'Stepped back ' + game.assets.step_back(name)
                 update_pin = True
-            if update_pin:
-                await self.pinned_message.edit(content=game.output())
+            if update_pin and game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
