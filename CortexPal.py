@@ -16,6 +16,8 @@
 # Program should work fine even if you haven't pinned a message
 # Auto-capitalizing?
 # Maybe the Cortex Game Information header is superfluous
+# Hero dice are a pool. Gonna need GroupedDicePools then.
+# Also do crisis and "growth" pools. Make "pool" a generic concept?
 
 import discord
 import random
@@ -29,6 +31,14 @@ DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes 
 TOKEN = os.getenv('CORTEX_DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='$')
 
+class CortexError(Exception):
+    def __init__(self, message, *args):
+        self.message = message
+        self.args = args
+
+    def __str__(self):
+        return self.message.format(*(self.args))
+
 def get_matching_key(typed_key, stored_keys):
     match = None
     normal_typed_key = typed_key.replace(' ', '').lower()
@@ -41,8 +51,7 @@ def get_matching_key(typed_key, stored_keys):
 def find_die_error(die):
     error = None
     if not die in ['4', '6', '8', '10', '12']:
-        error = DIE_FACE_ERROR.format(die)
-    return error
+        raise CortexError(DIE_FACE_ERROR, die)
 
 class NamedDice:
     def __init__(self):
@@ -329,23 +338,27 @@ class CortexPal(commands.Cog):
     @commands.command()
     async def comp(self, ctx, *args):
         game = self.get_game_info(ctx)
-        if not args:
-            await ctx.send('This is where we give syntax help for the command')
-        elif args[0] == 'new':
-            name = ' '.join(args[2:])
-            output = game.complications.add(name, int(args[1]))
-            await self.pinned_message.edit(content=game.output())
-            await ctx.send('New complication: ' + output)
-        elif args[0] == 'stepup':
-            name = ' '.join(args[1:])
-            output = game.complications.step_up(name)
-            await self.pinned_message.edit(content=game.output())
-            await ctx.send('Stepped up: ' + output)
-        elif args[0] == 'stepback':
-            name = ' '.join(args[1:])
-            output = game.complications.step_back(name)
-            await self.pinned_message.edit(content=game.output())
-            await ctx.send('Stepped back: ' + output)
+        try:
+            if not args:
+                await ctx.send('Use the `$comp` command like this:\n`$comp new 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepback Dazed` (steps back the Dazed complication)')
+            elif args[0] == 'new':
+                find_die_error(args[1])
+                name = ' '.join(args[2:])
+                output = game.complications.add(name, int(args[1]))
+                await self.pinned_message.edit(content=game.output())
+                await ctx.send('New complication: ' + output)
+            elif args[0] == 'stepup':
+                name = ' '.join(args[1:])
+                output = game.complications.step_up(name)
+                await self.pinned_message.edit(content=game.output())
+                await ctx.send('Stepped up: ' + output)
+            elif args[0] == 'stepback':
+                name = ' '.join(args[1:])
+                output = game.complications.step_back(name)
+                await self.pinned_message.edit(content=game.output())
+                await ctx.send('Stepped back: ' + output)
+        except CortexError as err:
+            await ctx.send(err)
 
     @commands.command()
     async def pp(self, ctx, *args):
@@ -370,26 +383,26 @@ class CortexPal(commands.Cog):
     async def roll(self, ctx, *args):
         error = None
         results = {}
-        for arg in args:
-            error = find_die_error(arg)
-            if error:
-                break
-            die = int(arg)
-            roll = str(random.SystemRandom().randrange(1, int(die) + 1))
-            if roll == '1':
-                roll = '**(1)**'
-            if die in results:
-                results[die].append(roll)
-            else:
-                results[die] = [roll]
-        if error:
-            await ctx.send(error)
-        else:
+        try:
+            for arg in args:
+                error = find_die_error(arg)
+                if error:
+                    break
+                die = int(arg)
+                roll = str(random.SystemRandom().randrange(1, int(die) + 1))
+                if roll == '1':
+                    roll = '**(1)**'
+                if die in results:
+                    results[die].append(roll)
+                else:
+                    results[die] = [roll]
             output = ''
             sorted_keys = sorted(results.keys())
             for key in sorted_keys:
                 output += 'D{0} : {1}\n'.format(key, ', '.join(results[key]))
             await ctx.send(output)
+        except CortexError as err:
+            await ctx.send(err)
 
     @commands.command()
     async def doom(self, ctx, *args):

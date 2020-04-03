@@ -1,2 +1,2 @@
-.env
-.sh
+*.sh
+TODO.md
