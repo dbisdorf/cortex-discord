@@ -10,14 +10,14 @@
 # Document synonyms in user help.
 # Move to an exception model of throwing errors.
 # Is there any point in using subcommands?
-# Pinned message must be stored by server/channel as well
 # A straight array of CortexGames might not be the most efficient for sorting purposes
-# Program should work fine even if you haven't pinned a message
 # Auto-capitalizing for names of pools/stress/complications/assets/etc?
 # Maybe the Cortex Game Information header is superfluous
 # Hero dice are a pool. Gonna need GroupedDicePools then.
 # Also do crisis and "growth" pools. Make "pool" a generic concept?
 # Comments!
+# I suppose the different error messages should map to different exceptions.
+# Fix plurals in error messages.
 
 import discord
 import random
@@ -27,6 +27,9 @@ from discord.ext import commands
 PREFIX = '$'
 UNTYPED_STRESS = 'General'
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
+NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
+HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
+HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 
 TOKEN = os.getenv('CORTEX_DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='$')
@@ -54,8 +57,9 @@ def find_die_error(die):
         raise CortexError(DIE_FACE_ERROR, die)
 
 class NamedDice:
-    def __init__(self):
+    def __init__(self, category):
         self.dice = {}
+        self.category = category
 
     def is_empty(self):
         return not self.dice
@@ -75,6 +79,8 @@ class NamedDice:
         key = get_matching_key(name, list(self.dice))
         if key:
             self.dice[key] += 2
+        else:
+            raise CortexError(NOT_EXIST_ERROR, self.category)
         return self.output(key)
 
     def step_back(self, name):
@@ -83,6 +89,8 @@ class NamedDice:
             self.dice[key] -= 2
             if self.dice[key] < 4:
                 del self.dice[key]
+        else:
+            raise CortexError(NOT_EXIST_ERROR, self.category)
         return self.output(key)
 
     def get_all_names(self):
@@ -132,8 +140,9 @@ class DicePool:
         return output
 
 class Resources:
-    def __init__(self):
+    def __init__(self, category):
         self.resources = {}
+        self.category = category
 
     def is_empty(self):
         return not self.resources
@@ -149,6 +158,10 @@ class Resources:
 
     def remove(self, name, qty=1):
         key = get_matching_key(name, list(self.resources))
+        if not key:
+            raise CortexError(HAS_NONE_ERROR, name, self.category)
+        if self.resources[key] < qty:
+            raise CortexError(HAS_ONLY_ERROR, key, self.resources[key], self.category)
         self.resources[key] -= qty
         if self.resources[key] < 0:
             del self.resources[key]
@@ -208,12 +221,12 @@ class GroupedNamedDice:
 class CortexGame:
     def __init__(self):
         self.pinned_message = None
-        self.complications = NamedDice()
-        self.plot_points = Resources()
+        self.complications = NamedDice('complication')
+        self.plot_points = Resources('plot points')
         self.doom_pool = DicePool()
         self.stress = GroupedNamedDice()
-        self.hero_dice = Resources()
-        self.assets = NamedDice()
+        self.hero_dice = Resources('hero dice')
+        self.assets = NamedDice('asset')
 
     def output(self):
         output = '**Cortex Game Information**\n'
@@ -305,23 +318,26 @@ class CortexPal(commands.Cog):
     async def pp(self, ctx, *args):
         output = ''
         update_pin = False
-        if not args:
-            output = 'Use the `$pp` command like this:\n`$pp give Alice 3` (gives Alice 3 PP)\n`$pp spend Alice` (spends one of Alice\'s PP)'
-        else:
-            game = self.get_game_info(ctx)
-            if len(args) > 2:
-                qty = int(args[2])
+        try:
+            if not args:
+                output = 'Use the `$pp` command like this:\n`$pp give Alice 3` (gives Alice 3 PP)\n`$pp spend Alice` (spends one of Alice\'s PP)'
             else:
-                qty = 1
-            if args[0] == 'give':
-                output = 'Plot points for ' + game.plot_points.add(args[1], qty)
-                update_pin = True
-            elif args[0] == 'spend':
-                output = 'Plot points for ' + game.plot_points.remove(args[1], qty)
-                update_pin = True
-        if update_pin and game.pinned_message:
-            await game.pinned_message.edit(content=game.output())
-        await ctx.send(output)
+                game = self.get_game_info(ctx)
+                if len(args) > 2:
+                    qty = int(args[2])
+                else:
+                    qty = 1
+                if args[0] == 'give':
+                    output = 'Plot points for ' + game.plot_points.add(args[1], qty)
+                    update_pin = True
+                elif args[0] == 'spend':
+                    output = 'Plot points for ' + game.plot_points.remove(args[1], qty)
+                    update_pin = True
+            if update_pin and game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
+            await ctx.send(output)
+        except CortexError as err:
+            await ctx.send(err)
 
     @commands.command()
     async def roll(self, ctx, *args):
