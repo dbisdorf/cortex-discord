@@ -10,17 +10,19 @@
 # Comments!
 # I suppose the different error messages should map to different exceptions.
 # Fix plurals in error messages.
-# Implement a command for rolling a DicePool.
 # Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
-# implement more removal commands
+# Implement more removal commands
 # More error exceptions and validation
 # Handle stepping up or down too far
 # Constants to match all command parameters (add/remove/roll/etc)
-# Implement xDX syntax for all pertinent commands.
+# Implement xDx syntax for all pertinent commands. Will this mean it's time for the Dice class?
+# Should our classes assumed the keys are cleaned up before passed to methods?
+# Validation should attempt to determine if someone has chosen an invalid dice expression (7, 4d, 3d3)
 
 import discord
 import random
 import os
+import re
 from discord.ext import commands
 
 PREFIX = '$'
@@ -30,8 +32,12 @@ UNTYPED_STRESS = 'General'
 ADD_SYNONYMS = ['add', 'give', 'new']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
 
+DICE_EXPRESSION = re.compile('(\d*(d|D))?(4|6|8|10|12)')
+
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
 DIE_STRING_ERROR = '{0} is not a valid die or dice.'
+DIE_EXCESS_ERROR = 'You can\'t use that many dice.'
+DIE_MISSING_ERROR = 'There were no valid dice in that command.'
 NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
@@ -47,6 +53,16 @@ class CortexError(Exception):
     def __str__(self):
         return self.message.format(*(self.args))
 
+def separate_dice_and_name(inputs):
+    dice = []
+    words = []
+    for input in inputs:
+        if DICE_EXPRESSION.fullmatch(input):
+            dice.append(Dice(input))
+        else:
+            words.append(input.lower().capitalize())
+    return {'dice': dice, 'name': ' '.join(words)}
+
 def clean_up_key(typed_key):
     return ' '.join([word.lower().capitalize() for word in typed_key.split(' ')])
 
@@ -54,6 +70,26 @@ def find_die_error(die):
     error = None
     if not die in ['4', '6', '8', '10', '12']:
         raise CortexError(DIE_FACE_ERROR, die)
+
+class Dice:
+    def __init__(self, expression):
+        self.faces = 4
+        self.qty = 1
+        if not DICE_EXPRESSION.fullmatch(expression):
+            raise CortexError(DIE_STRING_ERROR, expression)
+        numbers = expression.lower().split('d')
+        if len(numbers) == 1:
+            self.faces = int(numbers[0])
+        else:
+            if numbers[0]:
+                self.qty = int(numbers[0])
+            self.faces = int(numbers[1])
+
+    def output(self):
+        if self.qty > 1:
+            return '{0}D{1}'.format(qty, faces)
+        else:
+            return 'D{0}'.format(faces)
 
 class NamedDice:
     def __init__(self, category):
@@ -344,21 +380,27 @@ class CortexPal(commands.Cog):
         try:
             if not args:
                 output = 'Use the `$comp` command like this:\n`$comp add 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepback Dazed` (steps back the Dazed complication)'
-            elif args[0] in ADD_SYNONYMS:
-                find_die_error(args[1])
-                name = ' '.join(args[2:])
-                output = 'New complication: ' + game.complications.add(name, int(args[1]))
-                update_pin = True
-            elif args[0] == 'stepup':
-                name = ' '.join(args[1:])
-                output = 'Stepped up: ' + game.complications.step_up(name)
-                update_pin = True
-            elif args[0] == 'stepback':
-                name = ' '.join(args[1:])
-                output = 'Stepped back: ' + game.complications.step_back(name)
-                update_pin = True
-            if update_pin and game.pinned_message:
-                await game.pinned_message.edit(content=game.output())
+            else:
+                separated = separate_dice_and_name(args[1:])
+                dice = separated['dice']
+                name = separated['name']
+                if args[0] in ADD_SYNONYMS:
+                    if not dice:
+                        raise CortexError(DIE_MISSING_ERROR)
+                    elif len(dice) > 1:
+                        raise CortexError(DIE_EXCESS_ERROR)
+                    elif dice[0].qty > 1:
+                        raise CortexError(DIE_EXCESS_ERROR)
+                    output = 'New complication: ' + game.complications.add(name, dice[0].faces)
+                    update_pin = True
+                elif args[0] == 'stepup':
+                    output = 'Stepped up: ' + game.complications.step_up(name)
+                    update_pin = True
+                elif args[0] == 'stepback':
+                    output = 'Stepped back: ' + game.complications.step_back(name)
+                    update_pin = True
+                if update_pin and game.pinned_message:
+                    await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
