@@ -1,19 +1,19 @@
 # TO DO
-# Validate all die faces and give error if needed
 # Master help command, and help for individual commands
 # Reduce repetition in command methods
 # Constants for all static messages
-# Match verbs against synonym arrays.
 # Document synonyms in user help.
 # Is there any point in using subcommands?
 # A straight array of CortexGames might not be the most efficient for sorting purposes
-# Auto-capitalizing for names of pools/stress/complications/assets/etc?
 # Maybe the Cortex Game Information header is superfluous
-# Hero dice are a pool. Gonna need GroupedDicePools then.
-# Also do crisis and "growth" pools. Make "pool" a generic concept?
+# How best to handle character-specific hero dice pool and growth pools?
 # Comments!
 # I suppose the different error messages should map to different exceptions.
 # Fix plurals in error messages.
+# Implement a command for rolling a DicePool.
+# Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
+# implement more removal commands
+# More error exceptions and validation
 
 import discord
 import random
@@ -21,7 +21,12 @@ import os
 from discord.ext import commands
 
 PREFIX = '$'
+
 UNTYPED_STRESS = 'General'
+
+ADD_SYNONYMS = ['add', 'give', 'new', 'create']
+REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
+
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
 NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
@@ -38,14 +43,8 @@ class CortexError(Exception):
     def __str__(self):
         return self.message.format(*(self.args))
 
-def get_matching_key(typed_key, stored_keys):
-    match = None
-    normal_typed_key = typed_key.replace(' ', '').lower()
-    for stored_key in stored_keys:
-        normal_stored_key = stored_key.replace(' ', '').lower()
-        if normal_stored_key.startswith(normal_typed_key):
-            match = stored_key
-    return match
+def clean_up_key(typed_key):
+    return ' '.join([word.lower().capitalize() for word in typed_key.split(' ')])
 
 def find_die_error(die):
     error = None
@@ -61,10 +60,9 @@ class NamedDice:
         return not self.dice
 
     def add(self, name, size):
-        key = get_matching_key(name, list(self.dice))
-        if not key:
-            self.dice[name] = size
-            key = name
+        key = clean_up_key(name)
+        if not key in self.dice:
+            self.dice[key] = size
         elif self.dice[key] < size:
             self.dice[key] = size
         else:
@@ -72,16 +70,16 @@ class NamedDice:
         return self.output(key)
 
     def step_up(self, name):
-        key = get_matching_key(name, list(self.dice))
-        if key:
+        key = clean_up_key(name)
+        if key in self.dice:
             self.dice[key] += 2
         else:
             raise CortexError(NOT_EXIST_ERROR, self.category)
         return self.output(key)
 
     def step_back(self, name):
-        key = get_matching_key(name, list(self.dice))
-        if key:
+        key = clean_up_key(name)
+        if key in self.dice:
             self.dice[key] -= 2
             if self.dice[key] < 4:
                 del self.dice[key]
@@ -143,15 +141,14 @@ class DicePools:
         return not self.pools
 
     def add(self, name, size, qty=1):
-        key = get_matching_key(name, list(self.pools))
-        if not key:
-            self.pools[name] = DicePool()
-            key = name
+        key = clean_up_key(name)
+        if not key in self.pools:
+            self.pools[key] = DicePool()
         output = self.pools[key].add(size, qty)
         return '{0}: {1}'.format(key, output)
 
     def remove(self, name, size, qty=1):
-        key = get_matching_key(name, list(self.pools))
+        key = clean_up_key(name)
         output = self.pools[key].remove(size, qty)
         return '{0}: {1}'.format(key, output)
 
@@ -172,18 +169,17 @@ class Resources:
         return not self.resources
 
     def add(self, name, qty=1):
-        key = get_matching_key(name, list(self.resources))
-        if not key:
-            self.resources[name] = qty
-            key = name
+        key = clean_up_key(name)
+        if not key in self.resources:
+            self.resources[key] = qty
         else:
             self.resources[key] += qty
         return self.output(key)
 
     def remove(self, name, qty=1):
-        key = get_matching_key(name, list(self.resources))
-        if not key:
-            raise CortexError(HAS_NONE_ERROR, name, self.category)
+        key = clean_up_key(name)
+        if not key in self.resources:
+            raise CortexError(HAS_NONE_ERROR, key, self.category)
         if self.resources[key] < qty:
             raise CortexError(HAS_ONLY_ERROR, key, self.resources[key], self.category)
         self.resources[key] -= qty
@@ -192,7 +188,7 @@ class Resources:
         return self.output(key)
 
     def output(self, name):
-        key = get_matching_key(name, list(self.resources))
+        key = clean_up_key(name)
         return '{0}: {1}'.format(key, self.resources[key])
 
     def output_all(self):
@@ -211,20 +207,19 @@ class GroupedNamedDice:
         return not self.groups
 
     def add(self, group, name, size):
-        key = get_matching_key(group, list(self.groups))
-        if not key:
-            self.groups[group] = NamedDice()
-            key = group
+        key = clean_up_key(group)
+        if not key in self.groups:
+            self.groups[key] = NamedDice()
         self.groups[key].add(name, size)
         return self.output(key)
 
     def step_up(self, group, name):
-        key = get_matching_key(group, list(self.groups))
+        key = clean_up_key(group)
         self.groups[key].step_up(name)
         return self.output(key)
 
     def step_back(self, group, name):
-        key = get_matching_key(group, list(self.groups))
+        key = clean_up_key(group)
         self.groups[key].step_back(name)
         return self.output(key)
 
@@ -313,8 +308,8 @@ class CortexPal(commands.Cog):
         update_pin = False
         try:
             if not args:
-                output = 'Use the `$comp` command like this:\n`$comp new 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepback Dazed` (steps back the Dazed complication)'
-            elif args[0] == 'new':
+                output = 'Use the `$comp` command like this:\n`$comp add 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepback Dazed` (steps back the Dazed complication)'
+            elif args[0] in ADD_SYNONYMS:
                 find_die_error(args[1])
                 name = ' '.join(args[2:])
                 output = 'New complication: ' + game.complications.add(name, int(args[1]))
@@ -339,17 +334,17 @@ class CortexPal(commands.Cog):
         update_pin = False
         try:
             if not args:
-                output = 'Use the `$pp` command like this:\n`$pp give Alice 3` (gives Alice 3 PP)\n`$pp spend Alice` (spends one of Alice\'s PP)'
+                output = 'Use the `$pp` command like this:\n`$pp add Alice 3` (gives Alice 3 PP)\n`$pp remove Alice` (spends one of Alice\'s PP)'
             else:
                 game = self.get_game_info(ctx)
                 if len(args) > 2:
                     qty = int(args[2])
                 else:
                     qty = 1
-                if args[0] == 'give':
+                if args[0] in ADD_SYNONYMS:
                     output = 'Plot points for ' + game.plot_points.add(args[1], qty)
                     update_pin = True
-                elif args[0] == 'spend':
+                elif args[0] in REMOVE_SYNOYMS:
                     output = 'Plot points for ' + game.plot_points.remove(args[1], qty)
                     update_pin = True
             if update_pin and game.pinned_message:
@@ -389,12 +384,12 @@ class CortexPal(commands.Cog):
         game = self.get_game_info(ctx)
         try:
             if not args:
-                output = 'Use the `$pool` command like this:\n`$pool give Doom 6 8` (gives the Doom pool a D6 and D8)\n`$pool spend Doom 10` (spends a D10 from the Doom pool)'
-            elif args[0] == 'give':
+                output = 'Use the `$pool` command like this:\n`$pool add Doom 6 8` (gives the Doom pool a D6 and D8)\n`$pool remove Doom 10` (spends a D10 from the Doom pool)'
+            elif args[0] in ADD_SYNONYMS:
                 for arg in args[2:]:
                     output = game.pools.add(args[1], int(arg))
                 update_pin = True
-            elif args[0] == 'spend':
+            elif args[0] in REMOVE_SYNOYMS:
                 for arg in args[2:]:
                     output = game.pools.remove(args[1], int(arg))
                 update_pin = True
@@ -410,10 +405,10 @@ class CortexPal(commands.Cog):
         update_pin = False
         try:
             if not args:
-                output = 'use the `$stress` command like this:\n`$stress give Amy 8` (gives Amy D8 stress)\n`$stress give Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
+                output = 'use the `$stress` command like this:\n`$stress add Amy 8` (gives Amy D8 stress)\n`$stress add Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
             else:
                 game = self.get_game_info(ctx)
-                if args[0] == 'give':
+                if args[0] in ADD_SYNONYMS:
                     if args[2].isdecimal():
                         stress_name = UNTYPED_STRESS
                         die = int(args[2])
