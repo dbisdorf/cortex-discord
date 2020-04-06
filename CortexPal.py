@@ -14,6 +14,9 @@
 # Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
 # implement more removal commands
 # More error exceptions and validation
+# Handle stepping up or down too far
+# Constants to match all command parameters (add/remove/roll/etc)
+# Implement xDX syntax for all pertinent commands.
 
 import discord
 import random
@@ -24,10 +27,11 @@ PREFIX = '$'
 
 UNTYPED_STRESS = 'General'
 
-ADD_SYNONYMS = ['add', 'give', 'new', 'create']
+ADD_SYNONYMS = ['add', 'give', 'new']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
 
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
+DIE_STRING_ERROR = '{0} is not a valid die or dice.'
 NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
@@ -102,8 +106,22 @@ class NamedDice:
         return output
 
 class DicePool:
-    def __init__(self):
+    def __init__(self, dice_strings=[]):
         self.dice = {}
+        for dice in dice_strings:
+            lower_dice = dice.lower()
+            ds = lower_dice.count('d')
+            if not ds:
+                find_die_error(dice)
+                self.add(int(dice))
+            elif ds == 1:
+                tokens = dice.split('d')
+                if not tokens[0].isdecimal():
+                    raise CortexError(DIE_STRING_ERROR, dice)
+                find_die_error(tokens[1])
+                self.add(int(tokens[1]), int(tokens[0]))
+            else:
+                raise CortexError(DIE_STRING_ERROR, dice)
 
     def is_empty(self):
         return not self.dice
@@ -120,6 +138,19 @@ class DicePool:
         if self.dice[size] <= 0:
             del self.dice[size]
         return self.output()
+
+    def roll(self):
+        output = ''
+        separator = ''
+        for face in sorted(list(self.dice)):
+            output += '{0}D{1} : '.format(separator, face)
+            for num in range(self.dice[face]):
+                roll = str(random.SystemRandom().randrange(1, int(face) + 1))
+                if roll == '1':
+                    roll = '**(1)**'
+                output += roll + ' '
+            separator = '\n'
+        return output
 
     def output(self):
         if self.is_empty():
@@ -151,6 +182,10 @@ class DicePools:
         key = clean_up_key(name)
         output = self.pools[key].remove(size, qty)
         return '{0}: {1}'.format(key, output)
+
+    def roll(self, name):
+        key = clean_up_key(name)
+        return self.pools[key].roll()
 
     def output(self):
         output = ''
@@ -357,23 +392,8 @@ class CortexPal(commands.Cog):
     async def roll(self, ctx, *args):
         results = {}
         try:
-            for arg in args:
-                find_die_error(arg)
-                if error:
-                    break
-                die = int(arg)
-                roll = str(random.SystemRandom().randrange(1, int(die) + 1))
-                if roll == '1':
-                    roll = '**(1)**'
-                if die in results:
-                    results[die].append(roll)
-                else:
-                    results[die] = [roll]
-            output = ''
-            sorted_keys = sorted(list(results))
-            for key in sorted_keys:
-                output += 'D{0} : {1}\n'.format(key, ', '.join(results[key]))
-            await ctx.send(output)
+            pool = DicePool(args)
+            await ctx.send(pool.roll())
         except CortexError as err:
             await ctx.send(err)
 
@@ -393,6 +413,8 @@ class CortexPal(commands.Cog):
                 for arg in args[2:]:
                     output = game.pools.remove(args[1], int(arg))
                 update_pin = True
+            elif args[0] == 'roll':
+                output = game.pools.roll(args[1])
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
