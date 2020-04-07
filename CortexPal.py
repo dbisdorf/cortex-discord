@@ -1,28 +1,3 @@
-# TO DO
-# Master help command, and help for individual commands
-# Reduce repetition in command methods
-# Constants for all static messages
-# Document synonyms in user help.
-# A straight array of CortexGames might not be the most efficient for sorting purposes
-# Maybe the Cortex Game Information header is superfluous
-# How best to handle character-specific hero dice pool and growth pools?
-# Comments! In proper auto-documenting format.
-# I suppose the different error messages should map to different exception classes.
-# Fix plurals in output messages.
-# Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
-# Implement more removal commands (for instance, to remove a die from a pool)
-# More error exceptions and validation
-# Handle stepping up or down too far
-# Constants to match all command parameters (add/remove/roll/etc)
-# Implement xDx syntax for all pertinent commands. Will this mean it's time for the Dice class?
-# Should our classes assumed the keys are cleaned up before passed to methods?
-# Validation should attempt to determine if someone has chosen an invalid dice expression (7, 4d, 3d3)
-# We can remove find_die_error when Dice class is fully implemented.
-# Is there a game rule for stepping up a multi-die trait, like 3D8?
-# Why aren't exceptions for non-existent commands getting logged to the error file?
-# Intelligent fallback when no CFG file found. Also README should document the config file. And should it be INI or something else?
-# Should be a help topic for grammar (synonyms, capitalization, order of words)
-
 import discord
 import random
 import os
@@ -76,6 +51,16 @@ def separate_dice_and_name(inputs):
         else:
             words.append(input.lower().capitalize())
     return {'dice': dice, 'name': ' '.join(words)}
+
+def separate_numbers_and_name(inputs):
+    numbers = []
+    words = []
+    for input in inputs:
+        if input.isdecimal():
+            numbers.append(int(input))
+        else:
+            words.append(input.lower().capitalize())
+    return {'numbers': numbers, 'name': ' '.join(words)}
 
 def clean_up_key(typed_key):
     return ' '.join([word.lower().capitalize() for word in typed_key.split(' ')])
@@ -397,13 +382,13 @@ class CortexPal(commands.Cog):
     @commands.command()
     async def comp(self, ctx, *args):
         logging.info("comp command invoked")
-        game = self.get_game_info(ctx)
         output = ''
         update_pin = False
         try:
             if not args:
                 output = 'Use the `$comp` command like this:\n`$comp add 6 cloud of smoke` (creates a D6 Cloud Of Smoke complication)\n`$comp stepdown dazed` (steps down the Dazed complication)'
             else:
+                game = self.get_game_info(ctx)
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 name = separated['name']
@@ -441,15 +426,16 @@ class CortexPal(commands.Cog):
                 output = 'Use the `$pp` command like this:\n`$pp add Alice 3` (gives Alice 3 PP)\n`$pp remove Alice` (spends one of Alice\'s PP)'
             else:
                 game = self.get_game_info(ctx)
-                if len(args) > 2:
-                    qty = int(args[2])
-                else:
-                    qty = 1
+                separated = separate_numbers_and_name(args[1:])
+                name = separated['name']
+                qty = 1
+                if separated['numbers']:
+                    qty = separated['numbers'][0]
                 if args[0] in ADD_SYNONYMS:
-                    output = 'Plot points for ' + game.plot_points.add(args[1], qty)
+                    output = 'Plot points for ' + game.plot_points.add(name, qty)
                     update_pin = True
                 elif args[0] in REMOVE_SYNOYMS:
-                    output = 'Plot points for ' + game.plot_points.remove(args[1], qty)
+                    output = 'Plot points for ' + game.plot_points.remove(name, qty)
                     update_pin = True
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
