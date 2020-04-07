@@ -19,14 +19,15 @@
 # Validation should attempt to determine if someone has chosen an invalid dice expression (7, 4d, 3d3)
 # We can remove find_die_error when Dice class is fully implemented.
 # Is there a game rule for stepping up a multi-die trait, like 3D8?
-# Maybe the Discord token and the logging configuration should go in a config file.
 # Why aren't exceptions for non-existent commands getting logged to the error file?
+# Intelligent fallback when no CFG file found.
 
 import discord
 import random
 import os
 import re
 import logging
+import configparser
 from discord.ext import commands
 
 PREFIX = '$'
@@ -47,8 +48,10 @@ HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-logging.basicConfig(filename='cortexpal.log', format='%(asctime)s %(message)s', level=logging.INFO)
-TOKEN = os.getenv('CORTEX_DISCORD_TOKEN')
+config = configparser.ConfigParser()
+config.read('cortexpal.ini')
+logging.basicConfig(filename=config['logging']['file'], format='%(asctime)s %(message)s', level=logging.INFO)
+TOKEN = config['discord']['token']
 bot = commands.Bot(command_prefix='$')
 
 class CortexError(Exception):
