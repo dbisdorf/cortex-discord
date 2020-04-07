@@ -6,7 +6,7 @@
 # A straight array of CortexGames might not be the most efficient for sorting purposes
 # Maybe the Cortex Game Information header is superfluous
 # How best to handle character-specific hero dice pool and growth pools?
-# Comments!
+# Comments! In proper auto-documenting format.
 # I suppose the different error messages should map to different exception classes.
 # Fix plurals in output messages.
 # Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
@@ -20,11 +20,13 @@
 # We can remove find_die_error when Dice class is fully implemented.
 # Is there a game rule for stepping up a multi-die trait, like 3D8?
 # Why aren't exceptions for non-existent commands getting logged to the error file?
-# Intelligent fallback when no CFG file found.
+# Intelligent fallback when no CFG file found. Also README should document the config file. And should it be INI or something else?
+# Should be a help topic for grammar (synonyms, capitalization, order of words)
 
 import discord
 import random
 import os
+import traceback
 import re
 import logging
 import configparser
@@ -38,11 +40,14 @@ ADD_SYNONYMS = ['add', 'give', 'new']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
 
 DICE_EXPRESSION = re.compile('(\d*(d|D))?(4|6|8|10|12)')
+DIE_SIZES = [4, 6, 8, 10, 12]
 
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
 DIE_STRING_ERROR = '{0} is not a valid die or dice.'
 DIE_EXCESS_ERROR = 'You can\'t use that many dice.'
 DIE_MISSING_ERROR = 'There were no valid dice in that command.'
+DIE_LACK_ERROR = 'That pool only has {0}D{1}.'
+DIE_NONE_ERROR = 'That pool doesn\'t have any D{0}s.'
 NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
@@ -67,7 +72,7 @@ def separate_dice_and_name(inputs):
     words = []
     for input in inputs:
         if DICE_EXPRESSION.fullmatch(input):
-            dice.append(Dice(input))
+            dice.append(Die(input))
         else:
             words.append(input.lower().capitalize())
     return {'dice': dice, 'name': ' '.join(words)}
@@ -80,34 +85,44 @@ def find_die_error(die):
     if not die in ['4', '6', '8', '10', '12']:
         raise CortexError(DIE_FACE_ERROR, die)
 
-class Dice:
+class Die:
     def __init__(self, expression):
-        self.faces = 4
+        self.size = 4
         self.qty = 1
         if not DICE_EXPRESSION.fullmatch(expression):
             raise CortexError(DIE_STRING_ERROR, expression)
         numbers = expression.lower().split('d')
         if len(numbers) == 1:
-            self.faces = int(numbers[0])
+            self.size = int(numbers[0])
         else:
             if numbers[0]:
                 self.qty = int(numbers[0])
-            self.faces = int(numbers[1])
-
-    def step_up(self):
-        if faces > 4:
-            faces -= 2
+            self.size = int(numbers[1])
 
     def step_down(self):
-        if faces < 12:
-            faces += 2
+        if self.size > 4:
+            self.size -= 2
+
+    def step_up(self):
+        if self.size < 12:
+            self.size += 2
+
+    def combine(self, other_die):
+        if self.size < other_die.size:
+            self.size = other_die.size
+        elif self.size < 12:
+            self.size += 2
 
     def output(self):
         if self.qty > 1:
-            return '{0}D{1}'.format(qty, faces)
+            return '{0}D{1}'.format(self.qty, self.size)
         else:
-            return 'D{0}'.format(faces)
+            return 'D{0}'.format(self.size)
 
+"""
+NamedDice: a collection of user-named single-die traits.
+Suitable for complications and assets.
+"""
 class NamedDice:
     def __init__(self, category):
         self.dice = {}
@@ -116,39 +131,35 @@ class NamedDice:
     def is_empty(self):
         return not self.dice
 
-    def add(self, name, size):
-        key = clean_up_key(name)
-        if not key in self.dice:
-            self.dice[key] = size
-        elif self.dice[key] < size:
-            self.dice[key] = size
+    def add(self, name, die):
+        if not name in self.dice:
+            self.dice[name] = die
+            return 'New: ' + self.output(name)
         else:
-            self.dice[key] += 2
-        return self.output(key)
+            self.dice[name].combine(die)
+            return 'Raised ' + self.output(name)
 
     def step_up(self, name):
-        key = clean_up_key(name)
-        if key in self.dice:
-            self.dice[key] += 2
-        else:
+        if not name in self.dice:
             raise CortexError(NOT_EXIST_ERROR, self.category)
-        return self.output(key)
+        self.dice[name].step_up()
+        return 'Stepped up: ' + self.output(name)
 
     def step_down(self, name):
-        key = clean_up_key(name)
-        if key in self.dice:
-            self.dice[key] -= 2
-            if self.dice[key] < 4:
-                del self.dice[key]
-        else:
+        if not name in self.dice:
             raise CortexError(NOT_EXIST_ERROR, self.category)
-        return self.output(key)
+        if self.dice[name].qty == 4:
+            del self.dice[name]
+            return 'Stepped down and removed: ' + name
+        else:
+            self.dice[name].step_down()
+            return 'Stepped down: ' + self.output(name)
 
     def get_all_names(self):
         return list(self.dice)
 
     def output(self, name):
-        return 'D{0} {1}'.format(self.dice[name], name)
+        return '{0} {1}'.format(self.dice[name].output(), name)
 
     def output_all(self, separator='\n'):
         output = ''
@@ -159,62 +170,56 @@ class NamedDice:
         return output
 
 class DicePool:
-    def __init__(self, dice_strings=[]):
-        self.dice = {}
-        for dice in dice_strings:
-            lower_dice = dice.lower()
-            ds = lower_dice.count('d')
-            if not ds:
-                find_die_error(dice)
-                self.add(int(dice))
-            elif ds == 1:
-                tokens = dice.split('d')
-                if not tokens[0].isdecimal():
-                    raise CortexError(DIE_STRING_ERROR, dice)
-                find_die_error(tokens[1])
-                self.add(int(tokens[1]), int(tokens[0]))
-            else:
-                raise CortexError(DIE_STRING_ERROR, dice)
+    def __init__(self, incoming_dice=[]):
+        self.dice = [None, None, None, None, None]
+        for die in incoming_dice:
+            self.add(die)
 
     def is_empty(self):
         return not self.dice
 
-    def add(self, size, qty=1):
-        if size in self.dice:
-            self.dice[size] += qty
+    def add(self, die):
+        index = DIE_SIZES.index(die.size)
+        if self.dice[index]:
+            self.dice[index].qty += die.qty
         else:
-            self.dice[size] = qty
+            self.dice[index] = die
         return self.output()
 
-    def remove(self, size, qty=1):
-        self.dice[size] -= qty
-        if self.dice[size] <= 0:
-            del self.dice[size]
+    def remove(self, die):
+        index = DIE_SIZES.index(die.size)
+        if self.dice[index]:
+            stored_die = self.dice[index]
+            if die.qty > stored_die.qty:
+                raise CortexError(DIE_LACK_ERROR, stored_die.qty, stored_die.size)
+            stored_die.qty -= die.qty
+            if stored_die.qty == 0:
+                self.dice[index] = None
+        else:
+            raise CortexError(DIE_NONE_ERROR, die.size)
         return self.output()
 
     def roll(self):
         output = ''
         separator = ''
-        for face in sorted(list(self.dice)):
-            output += '{0}D{1} : '.format(separator, face)
-            for num in range(self.dice[face]):
-                roll = str(random.SystemRandom().randrange(1, int(face) + 1))
-                if roll == '1':
-                    roll = '**(1)**'
-                output += roll + ' '
-            separator = '\n'
+        for die in self.dice:
+            if die:
+                output += '{0}D{1} : '.format(separator, die.size)
+                for num in range(die.qty):
+                    roll = str(random.SystemRandom().randrange(1, int(die.size) + 1))
+                    if roll == '1':
+                        roll = '**(1)**'
+                    output += roll + ' '
+                separator = '\n'
         return output
 
     def output(self):
         if self.is_empty():
             return 'empty'
         output = ''
-        sorted_sizes = sorted(list(self.dice))
-        for size in sorted_sizes:
-            if self.dice[size] == 1:
-                output += 'D{0} '.format(size)
-            else:
-                output += '{0}D{1} '.format(self.dice[size], size)
+        for die in self.dice:
+            if die:
+                output += die.output() + ' '
         return output
 
 class DicePools:
@@ -397,7 +402,7 @@ class CortexPal(commands.Cog):
         update_pin = False
         try:
             if not args:
-                output = 'Use the `$comp` command like this:\n`$comp add 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepdown Dazed` (steps down the Dazed complication)'
+                output = 'Use the `$comp` command like this:\n`$comp add 6 cloud of smoke` (creates a D6 Cloud Of Smoke complication)\n`$comp stepdown dazed` (steps down the Dazed complication)'
             else:
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
@@ -409,13 +414,13 @@ class CortexPal(commands.Cog):
                         raise CortexError(DIE_EXCESS_ERROR)
                     elif dice[0].qty > 1:
                         raise CortexError(DIE_EXCESS_ERROR)
-                    output = 'New complication: ' + game.complications.add(name, dice[0].faces)
+                    output = game.complications.add(name, dice[0])
                     update_pin = True
                 elif args[0] == 'stepup':
-                    output = 'Stepped up: ' + game.complications.step_up(name)
+                    output = game.complications.step_up(name)
                     update_pin = True
                 elif args[0] == 'stepdown':
-                    output = 'Stepped down: ' + game.complications.step_down(name)
+                    output = game.complications.step_down(name)
                     update_pin = True
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
@@ -423,9 +428,8 @@ class CortexPal(commands.Cog):
         except CortexError as err:
             await ctx.send(err)
         except:
-            logging.error(sys.exc_info())
+            logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
-
 
     @commands.command()
     async def pp(self, ctx, *args):
@@ -453,7 +457,7 @@ class CortexPal(commands.Cog):
         except CortexError as err:
             await ctx.send(err)
         except:
-            logging.error(sys.exc_info())
+            logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
@@ -461,12 +465,14 @@ class CortexPal(commands.Cog):
         logging.info("roll command invoked")
         results = {}
         try:
-            pool = DicePool(args)
+            pool = DicePool()
+            for arg in args:
+                pool.add(Die(arg))
             await ctx.send(pool.roll())
         except CortexError as err:
             await ctx.send(err)
         except:
-            logging.error(sys.exc_info())
+            logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
@@ -494,7 +500,7 @@ class CortexPal(commands.Cog):
         except CortexError as err:
             await ctx.send(err)
         except:
-            logging.error(sys.exc_info())
+            logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
@@ -536,7 +542,7 @@ class CortexPal(commands.Cog):
         except CortexError as err:
             await ctx.send(err)
         except:
-            logging.error(sys.exc_info())
+            logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
@@ -567,7 +573,7 @@ class CortexPal(commands.Cog):
         except CortexError as err:
             await ctx.send(err)
         except:
-            logging.error(sys.exc_info())
+            logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
 
 logging.info("Bot startup")
