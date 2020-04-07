@@ -26,6 +26,7 @@ DIE_NONE_ERROR = 'That pool doesn\'t have any D{0}s.'
 NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
+INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
 config = configparser.ConfigParser()
@@ -154,6 +155,10 @@ class NamedDice:
             prefix = separator
         return output
 
+"""
+DicePool: a single-purpose collection of die sizes and quantities.
+Suitable for doom pools, crisis pools, and growth pools.
+"""
 class DicePool:
     def __init__(self, incoming_dice=[]):
         self.dice = [None, None, None, None, None]
@@ -163,25 +168,27 @@ class DicePool:
     def is_empty(self):
         return not self.dice
 
-    def add(self, die):
-        index = DIE_SIZES.index(die.size)
-        if self.dice[index]:
-            self.dice[index].qty += die.qty
-        else:
-            self.dice[index] = die
+    def add(self, dice):
+        for die in dice:
+            index = DIE_SIZES.index(die.size)
+            if self.dice[index]:
+                self.dice[index].qty += die.qty
+            else:
+                self.dice[index] = die
         return self.output()
 
-    def remove(self, die):
-        index = DIE_SIZES.index(die.size)
-        if self.dice[index]:
-            stored_die = self.dice[index]
-            if die.qty > stored_die.qty:
-                raise CortexError(DIE_LACK_ERROR, stored_die.qty, stored_die.size)
-            stored_die.qty -= die.qty
-            if stored_die.qty == 0:
-                self.dice[index] = None
-        else:
-            raise CortexError(DIE_NONE_ERROR, die.size)
+    def remove(self, dice):
+        for die in dice:
+            index = DIE_SIZES.index(die.size)
+            if self.dice[index]:
+                stored_die = self.dice[index]
+                if die.qty > stored_die.qty:
+                    raise CortexError(DIE_LACK_ERROR, stored_die.qty, stored_die.size)
+                stored_die.qty -= die.qty
+                if stored_die.qty == 0:
+                    self.dice[index] = None
+            else:
+                raise CortexError(DIE_NONE_ERROR, die.size)
         return self.output()
 
     def roll(self):
@@ -214,21 +221,20 @@ class DicePools:
     def is_empty(self):
         return not self.pools
 
-    def add(self, name, size, qty=1):
-        key = clean_up_key(name)
-        if not key in self.pools:
-            self.pools[key] = DicePool()
-        output = self.pools[key].add(size, qty)
-        return '{0}: {1}'.format(key, output)
+    def add(self, name, dice):
+        if not name in self.pools:
+            self.pools[name] = DicePool()
+        self.pools[name].add(dice)
+        return '{0}: {1}'.format(name, self.pools[name].output())
 
-    def remove(self, name, size, qty=1):
-        key = clean_up_key(name)
-        output = self.pools[key].remove(size, qty)
-        return '{0}: {1}'.format(key, output)
+    def remove(self, name, dice):
+        if not name in self.pools:
+            raise CortexError(NOT_EXIST_ERROR, 'pool')
+        self.pools[name].remove(dice)
+        return '{0}: {1}'.format(name, self.pools[name].output())
 
     def roll(self, name):
-        key = clean_up_key(name)
-        return self.pools[key].roll()
+        return self.pools[name].roll()
 
     def output(self):
         output = ''
@@ -464,24 +470,28 @@ class CortexPal(commands.Cog):
     @commands.command()
     async def pool(self, ctx, *args):
         logging.info("pool command invoked")
-        output = ''
-        update_pin = False
-        game = self.get_game_info(ctx)
         try:
+            output = ''
             if not args:
-                output = 'Use the `$pool` command like this:\n`$pool add Doom 6 8` (gives the Doom pool a D6 and D8)\n`$pool remove Doom 10` (spends a D10 from the Doom pool)'
-            elif args[0] in ADD_SYNONYMS:
-                for arg in args[2:]:
-                    output = game.pools.add(args[1], int(arg))
-                update_pin = True
-            elif args[0] in REMOVE_SYNOYMS:
-                for arg in args[2:]:
-                    output = game.pools.remove(args[1], int(arg))
-                update_pin = True
-            elif args[0] == 'roll':
-                output = game.pools.roll(args[1])
-            if update_pin and game.pinned_message:
-                await game.pinned_message.edit(content=game.output())
+                output = 'Use the `$pool` command like this:\n`$pool add doom 6 2d8` (gives the Doom pool a D6 and 2D8)\n`$pool remove doom 10` (spends a D10 from the Doom pool)'
+            else:
+                update_pin = False
+                game = self.get_game_info(ctx)
+                separated = separate_dice_and_name(args[1:])
+                dice = separated['dice']
+                name = separated['name']
+                if args[0] in ADD_SYNONYMS:
+                    output = game.pools.add(name, dice)
+                    update_pin = True
+                elif args[0] in REMOVE_SYNOYMS:
+                    output = game.pools.remove(name, dice)
+                    update_pin = True
+                elif args[0] == 'roll':
+                    output = game.pools.roll(name)
+                else:
+                    raise CortexError(INSTRUCTION_ERROR, args[0], '$pool')
+                if update_pin and game.pinned_message:
+                    await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
