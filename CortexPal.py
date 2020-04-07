@@ -387,7 +387,6 @@ class CortexPal(commands.Cog):
     async def comp(self, ctx, *args):
         logging.info("comp command invoked")
         output = ''
-        update_pin = False
         try:
             if not args:
                 output = 'Use the `$comp` command like this:\n`$comp add 6 cloud of smoke` (creates a D6 Cloud Of Smoke complication)\n`$comp stepdown dazed` (steps down the Dazed complication)'
@@ -396,6 +395,7 @@ class CortexPal(commands.Cog):
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 name = separated['name']
+                update_pin = False
                 if args[0] in ADD_SYNONYMS:
                     if not dice:
                         raise CortexError(DIE_MISSING_ERROR)
@@ -543,26 +543,33 @@ class CortexPal(commands.Cog):
     async def asset(self, ctx, *args):
         logging.info("asset command invoked")
         output = ''
-        update_pin = False
         try:
-            game = self.get_game_info(ctx)
+            output = ''
             if not args:
                 output = 'This is where we give syntax help for the command'
-            elif args[0] == 'new':
-                find_die_error(args[1])
-                name = ' '.join(args[2:])
-                output = 'New asset: ' + game.assets.add(name, int(args[1]))
-                update_pin = True
-            elif args[0] == 'stepup':
-                name = ' '.join(args[1:])
-                output = 'Stepped up ' + game.assets.step_up(name)
-                update_pin = True
-            elif args[0] == 'stepdown':
-                name = ' '.join(args[1:])
-                output = 'Stepped down ' + game.assets.step_down(name)
-                update_pin = True
-            if update_pin and game.pinned_message:
-                await game.pinned_message.edit(content=game.output())
+            else:
+                game = self.get_game_info(ctx)
+                separated = separate_dice_and_name(args[1:])
+                dice = separated['dice']
+                name = separated['name']
+                update_pin = False
+                if args[0] in ADD_SYNONYMS:
+                    if not dice:
+                        raise CortexError(DIE_MISSING_ERROR)
+                    elif len(dice) > 1:
+                        raise CortexError(DIE_EXCESS_ERROR)
+                    elif dice[0].qty > 1:
+                        raise CortexError(DIE_EXCESS_ERROR)
+                    output = game.assets.add(name, dice[0])
+                    update_pin = True
+                elif args[0] == 'stepup':
+                    output = game.assets.step_up(name)
+                    update_pin = True
+                elif args[0] == 'stepdown':
+                    output = game.assets.step_down(name)
+                    update_pin = True
+                if update_pin and game.pinned_message:
+                    await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
