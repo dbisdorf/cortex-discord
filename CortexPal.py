@@ -284,28 +284,26 @@ class Resources:
         return output
 
 class GroupedNamedDice:
-    def __init__(self):
+    def __init__(self, category):
         self.groups = {}
+        self.category = category
 
     def is_empty(self):
         return not self.groups
 
-    def add(self, group, name, size):
-        key = clean_up_key(group)
-        if not key in self.groups:
-            self.groups[key] = NamedDice()
-        self.groups[key].add(name, size)
-        return self.output(key)
+    def add(self, group, name, die):
+        if not group in self.groups:
+            self.groups[group] = NamedDice(self.category)
+        self.groups[group].add(name, die)
+        return self.output(group)
 
     def step_up(self, group, name):
-        key = clean_up_key(group)
-        self.groups[key].step_up(name)
-        return self.output(key)
+        self.groups[group].step_up(name)
+        return self.output(group)
 
     def step_down(self, group, name):
-        key = clean_up_key(group)
-        self.groups[key].step_down(name)
-        return self.output(key)
+        self.groups[group].step_down(name)
+        return self.output(group)
 
     def get_all_names(self):
         return list(self.dice)
@@ -327,7 +325,7 @@ class CortexGame:
         self.complications = NamedDice('complication')
         self.plot_points = Resources('plot points')
         self.pools = DicePools()
-        self.stress = GroupedNamedDice()
+        self.stress = GroupedNamedDice('stress')
         self.assets = NamedDice('asset')
 
     def output(self):
@@ -502,35 +500,35 @@ class CortexPal(commands.Cog):
     @commands.command()
     async def stress(self, ctx, *args):
         logging.info("stress command invoked")
-        output = ''
-        update_pin = False
         try:
             if not args:
                 output = 'use the `$stress` command like this:\n`$stress add Amy 8` (gives Amy D8 stress)\n`$stress add Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
             else:
+                output = ''
+                update_pin = False
                 game = self.get_game_info(ctx)
+                separated = separate_dice_and_name(args[1:])
+                dice = separated['dice']
+                split_name = separated['name'].split(' ', maxsplit=1)
+                owner_name = split_name[0]
+                if len(split_name) == 1:
+                    stress_name = UNTYPED_STRESS
+                else:
+                    stress_name = split_name[1]
                 if args[0] in ADD_SYNONYMS:
-                    if args[2].isdecimal():
-                        stress_name = UNTYPED_STRESS
-                        die = int(args[2])
-                    else:
-                        stress_name = args[2]
-                        die = int(args[3])
-                    output = 'Stress for ' + game.stress.add(args[1], stress_name, die)
+                    if not dice:
+                        raise CortexError(DIE_MISSING_ERROR)
+                    elif len(dice) > 1:
+                        raise CortexError(DIE_EXCESS_ERROR)
+                    elif dice[0].qty > 1:
+                        raise CortexError(DIE_EXCESS_ERROR)
+                    output = 'Stress for ' + game.stress.add(owner_name, stress_name, dice[0])
                     update_pin = True
                 elif args[0] == 'stepup':
-                    if len(args) == 2:
-                        stress_name = UNTYPED_STRESS
-                    else:
-                        stress_name = args[2]
-                    output = 'Stress for ' + game.stress.step_up(args[1], stress_name)
+                    output = 'Stress for ' + game.stress.step_up(owner_name, stress_name)
                     update_pin = True
                 elif args[0] == 'stepdown':
-                    if len(args) == 2:
-                        stress_name = UNTYPED_STRESS
-                    else:
-                        stress_name = args[2]
-                    output = 'Stress for ' + game.stress.step_down(args[1], stress_name)
+                    output = 'Stress for ' + game.stress.step_down(owner_name, stress_name)
                     update_pin = True
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
