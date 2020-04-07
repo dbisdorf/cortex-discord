@@ -3,15 +3,14 @@
 # Reduce repetition in command methods
 # Constants for all static messages
 # Document synonyms in user help.
-# Is there any point in using subcommands?
 # A straight array of CortexGames might not be the most efficient for sorting purposes
 # Maybe the Cortex Game Information header is superfluous
 # How best to handle character-specific hero dice pool and growth pools?
 # Comments!
 # I suppose the different error messages should map to different exception classes.
-# Fix plurals in error messages.
+# Fix plurals in output messages.
 # Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
-# Implement more removal commands
+# Implement more removal commands (for instance, to remove a die from a pool)
 # More error exceptions and validation
 # Handle stepping up or down too far
 # Constants to match all command parameters (add/remove/roll/etc)
@@ -20,12 +19,14 @@
 # Validation should attempt to determine if someone has chosen an invalid dice expression (7, 4d, 3d3)
 # We can remove find_die_error when Dice class is fully implemented.
 # Is there a game rule for stepping up a multi-die trait, like 3D8?
-# Every command must trap general exceptions, log, and communicate to user.
+# Maybe the Discord token and the logging configuration should go in a config file.
+# Why aren't exceptions for non-existent commands getting logged to the error file?
 
 import discord
 import random
 import os
 import re
+import logging
 from discord.ext import commands
 
 PREFIX = '$'
@@ -44,7 +45,9 @@ DIE_MISSING_ERROR = 'There were no valid dice in that command.'
 NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
+UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
+logging.basicConfig(filename='cortexpal.log', format='%(asctime)s %(message)s', level=logging.INFO)
 TOKEN = os.getenv('CORTEX_DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='$')
 
@@ -385,6 +388,7 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def comp(self, ctx, *args):
+        logging.info("comp command invoked")
         game = self.get_game_info(ctx)
         output = ''
         update_pin = False
@@ -415,9 +419,14 @@ class CortexPal(commands.Cog):
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
+        except:
+            logging.error(sys.exc_info())
+            await ctx.send(UNEXPECTED_ERROR)
+
 
     @commands.command()
     async def pp(self, ctx, *args):
+        logging.info("pp command invoked")
         output = ''
         update_pin = False
         try:
@@ -440,18 +449,26 @@ class CortexPal(commands.Cog):
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
+        except:
+            logging.error(sys.exc_info())
+            await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def roll(self, ctx, *args):
+        logging.info("roll command invoked")
         results = {}
         try:
             pool = DicePool(args)
             await ctx.send(pool.roll())
         except CortexError as err:
             await ctx.send(err)
+        except:
+            logging.error(sys.exc_info())
+            await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def pool(self, ctx, *args):
+        logging.info("pool command invoked")
         output = ''
         update_pin = False
         game = self.get_game_info(ctx)
@@ -473,9 +490,13 @@ class CortexPal(commands.Cog):
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
+        except:
+            logging.error(sys.exc_info())
+            await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def stress(self, ctx, *args):
+        logging.info("stress command invoked")
         output = ''
         update_pin = False
         try:
@@ -511,9 +532,13 @@ class CortexPal(commands.Cog):
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
+        except:
+            logging.error(sys.exc_info())
+            await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def asset(self, ctx, *args):
+        logging.info("asset command invoked")
         output = ''
         update_pin = False
         try:
@@ -538,6 +563,10 @@ class CortexPal(commands.Cog):
             await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
+        except:
+            logging.error(sys.exc_info())
+            await ctx.send(UNEXPECTED_ERROR)
 
+logging.info("Bot startup")
 bot.add_cog(CortexPal(bot))
 bot.run(TOKEN)
