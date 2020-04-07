@@ -8,7 +8,7 @@
 # Maybe the Cortex Game Information header is superfluous
 # How best to handle character-specific hero dice pool and growth pools?
 # Comments!
-# I suppose the different error messages should map to different exceptions.
+# I suppose the different error messages should map to different exception classes.
 # Fix plurals in error messages.
 # Swap the syntax for pools? Should it be '$pool give Fire Crisis 8 10 12' or '$pool give 8 10 12 Fire Crisis'? Should it be consistent with add/remove for assets/complications?
 # Implement more removal commands
@@ -18,6 +18,9 @@
 # Implement xDx syntax for all pertinent commands. Will this mean it's time for the Dice class?
 # Should our classes assumed the keys are cleaned up before passed to methods?
 # Validation should attempt to determine if someone has chosen an invalid dice expression (7, 4d, 3d3)
+# We can remove find_die_error when Dice class is fully implemented.
+# Is there a game rule for stepping up a multi-die trait, like 3D8?
+# Every command must trap general exceptions, log, and communicate to user.
 
 import discord
 import random
@@ -85,6 +88,14 @@ class Dice:
                 self.qty = int(numbers[0])
             self.faces = int(numbers[1])
 
+    def step_up(self):
+        if faces > 4:
+            faces -= 2
+
+    def step_down(self):
+        if faces < 12:
+            faces += 2
+
     def output(self):
         if self.qty > 1:
             return '{0}D{1}'.format(qty, faces)
@@ -117,7 +128,7 @@ class NamedDice:
             raise CortexError(NOT_EXIST_ERROR, self.category)
         return self.output(key)
 
-    def step_back(self, name):
+    def step_down(self, name):
         key = clean_up_key(name)
         if key in self.dice:
             self.dice[key] -= 2
@@ -289,9 +300,9 @@ class GroupedNamedDice:
         self.groups[key].step_up(name)
         return self.output(key)
 
-    def step_back(self, group, name):
+    def step_down(self, group, name):
         key = clean_up_key(group)
-        self.groups[key].step_back(name)
+        self.groups[key].step_down(name)
         return self.output(key)
 
     def get_all_names(self):
@@ -379,7 +390,7 @@ class CortexPal(commands.Cog):
         update_pin = False
         try:
             if not args:
-                output = 'Use the `$comp` command like this:\n`$comp add 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepback Dazed` (steps back the Dazed complication)'
+                output = 'Use the `$comp` command like this:\n`$comp add 6 Cloud of Smoke` (creates a D6 Cloud of Smoke complication)\n`$comp stepdown Dazed` (steps down the Dazed complication)'
             else:
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
@@ -396,8 +407,8 @@ class CortexPal(commands.Cog):
                 elif args[0] == 'stepup':
                     output = 'Stepped up: ' + game.complications.step_up(name)
                     update_pin = True
-                elif args[0] == 'stepback':
-                    output = 'Stepped back: ' + game.complications.step_back(name)
+                elif args[0] == 'stepdown':
+                    output = 'Stepped down: ' + game.complications.step_down(name)
                     update_pin = True
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
@@ -488,12 +499,12 @@ class CortexPal(commands.Cog):
                         stress_name = args[2]
                     output = 'Stress for ' + game.stress.step_up(args[1], stress_name)
                     update_pin = True
-                elif args[0] == 'stepback':
+                elif args[0] == 'stepdown':
                     if len(args) == 2:
                         stress_name = UNTYPED_STRESS
                     else:
                         stress_name = args[2]
-                    output = 'Stress for ' + game.stress.step_back(args[1], stress_name)
+                    output = 'Stress for ' + game.stress.step_down(args[1], stress_name)
                     update_pin = True
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
@@ -518,9 +529,9 @@ class CortexPal(commands.Cog):
                 name = ' '.join(args[1:])
                 output = 'Stepped up ' + game.assets.step_up(name)
                 update_pin = True
-            elif args[0] == 'stepback':
+            elif args[0] == 'stepdown':
                 name = ' '.join(args[1:])
-                output = 'Stepped back ' + game.assets.step_back(name)
+                output = 'Stepped down ' + game.assets.step_down(name)
                 update_pin = True
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
