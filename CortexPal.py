@@ -403,6 +403,8 @@ class CortexPal(commands.Cog):
                 elif args[0] == 'stepdown':
                     output = game.complications.step_down(name)
                     update_pin = True
+                else:
+                    raise CortexError(INSTRUCTION_ERROR, args[0], '$comp')
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
@@ -433,6 +435,8 @@ class CortexPal(commands.Cog):
                 elif args[0] in REMOVE_SYNOYMS:
                     output = 'Plot points for ' + game.plot_points.remove(name, qty)
                     update_pin = True
+                else:
+                    raise CortexError(INSTRUCTION_ERROR, args[0], '$pp')
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
@@ -522,6 +526,8 @@ class CortexPal(commands.Cog):
                 elif args[0] == 'stepdown':
                     output = 'Stress for ' + game.stress.step_down(owner_name, stress_name)
                     update_pin = True
+                else:
+                    raise CortexError(INSTRUCTION_ERROR, args[0], '$stress')
             if update_pin and game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
@@ -560,6 +566,8 @@ class CortexPal(commands.Cog):
                 elif args[0] == 'stepdown':
                     output = game.assets.step_down(name)
                     update_pin = True
+                else:
+                    raise CortexError(INSTRUCTION_ERROR, args[0], '$asset')
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
             await ctx.send(output)
