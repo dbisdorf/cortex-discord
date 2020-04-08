@@ -359,11 +359,15 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def info(self, ctx):
+        """Display all game information."""
+
         game = self.get_game_info(ctx)
         await ctx.send(game.output())
 
     @commands.command()
     async def pin(self, ctx):
+        """Pin a message to the channel to hold game information."""
+
         pins = await ctx.channel.pins()
         for pin in pins:
             if pin.author == self.bot.user:
@@ -374,6 +378,15 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def comp(self, ctx, *args):
+        """
+        Adjust complications.
+
+        For example:
+        $comp add 6 cloud of smoke (creates a D6 Cloud Of Smoke complication)
+        $comp stepup confused (steps up the Confused complication)
+        $comp stepdown dazed (steps down the Dazed complication)
+        """
+
         logging.info("comp command invoked")
         output = ''
         try:
@@ -413,6 +426,14 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def pp(self, ctx, *args):
+        """
+        Adjust plot points.
+
+        For example:
+        $pp add alice 3 (gives Alice 3 plot points)
+        $pp remove alice (spends one of Alice's plot points)
+        """
+
         logging.info("pp command invoked")
         output = ''
         update_pin = False
@@ -445,6 +466,14 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def roll(self, ctx, *args):
+        """
+        Roll some dice.
+
+        For example:
+        $roll 12 (rolls a D12)
+        $roll 4 3d8 10 10 (rolls a D4, 3D8, and 2D10)
+        """
+
         logging.info("roll command invoked")
         results = {}
         try:
@@ -460,6 +489,15 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def pool(self, ctx, *args):
+        """
+        Adjust dice pools.
+
+        For example:
+        $pool add doom 6 2d8 (gives the Doom pool a D6 and 2D8)
+        $pool remove doom 10 (spends a D10 from the Doom pool)
+        $pool roll doom (rolls the Doom pool)
+        """
+
         logging.info("pool command invoked")
         try:
             output = ''
@@ -492,10 +530,19 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def stress(self, ctx, *args):
+        """
+        Adjust stress.
+
+        For example:
+        $stress add amy 8 (gives Amy D8 general stress)
+        $stress add ben mental 6 (gives Ben D6 Mental stress)
+        $stress stepup cat social (steps up Cat's Social stress)
+        """
+
         logging.info("stress command invoked")
         try:
             if not args:
-                output = 'use the `$stress` command like this:\n`$stress add Amy 8` (gives Amy D8 stress)\n`$stress add Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
+                output = 'Use the `$stress` command like this:\n`$stress add Amy 8` (gives Amy D8 stress)\n`$stress add Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
             else:
                 output = ''
                 update_pin = False
@@ -536,6 +583,15 @@ class CortexPal(commands.Cog):
 
     @commands.command()
     async def asset(self, ctx, *args):
+        """
+        Adjust assets.
+
+        For example:
+        $asset add 6 big wrench (adds a D6 Big Wrench asset)
+        $asset stepup fast car (steps up the Fast Car asset)
+        $asset stepdown nice outfit (steps down the Nice Outfit asset)
+        """
+
         logging.info("asset command invoked")
         output = ''
         try:
