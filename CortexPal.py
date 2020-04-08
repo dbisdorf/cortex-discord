@@ -5,7 +5,9 @@ import traceback
 import re
 import logging
 import configparser
+import datetime
 from discord.ext import commands
+from datetime import datetime
 
 PREFIX = '$'
 
@@ -154,10 +156,10 @@ DicePool: a single-purpose collection of die sizes and quantities.
 Suitable for doom pools, crisis pools, and growth pools.
 """
 class DicePool:
-    def __init__(self, incoming_dice=[]):
+    def __init__(self, roller, incoming_dice=[]):
+        self.roller = roller
         self.dice = [None, None, None, None, None]
-        for die in incoming_dice:
-            self.add(die)
+        self.add(incoming_dice)
 
     def is_empty(self):
         return not self.dice
@@ -181,8 +183,8 @@ class DicePool:
                 stored_die.qty -= die.qty
                 if stored_die.qty == 0:
                     self.dice[index] = None
-            else:
-                raise CortexError(DIE_NONE_ERROR, die.size)
+        else:
+            raise CortexError(DIE_NONE_ERROR, die.size)
         return self.output()
 
     def roll(self):
@@ -192,7 +194,7 @@ class DicePool:
             if die:
                 output += '{0}D{1} : '.format(separator, die.size)
                 for num in range(die.qty):
-                    roll = str(random.SystemRandom().randrange(1, int(die.size) + 1))
+                    roll = str(self.roller.roll(die.size))
                     if roll == '1':
                         roll = '**(1)**'
                     output += roll + ' '
@@ -209,7 +211,8 @@ class DicePool:
         return output
 
 class DicePools:
-    def __init__(self):
+    def __init__(self, roller):
+        self.roller = self.roller
         self.pools = {}
 
     def is_empty(self):
@@ -217,7 +220,7 @@ class DicePools:
 
     def add(self, name, dice):
         if not name in self.pools:
-            self.pools[name] = DicePool()
+            self.pools[name] = DicePool(self.roller)
         self.pools[name].add(dice)
         return '{0}: {1}'.format(name, self.pools[name].output())
 
@@ -309,11 +312,11 @@ class GroupedNamedDice:
         return output
 
 class CortexGame:
-    def __init__(self):
+    def __init__(self, roller):
         self.pinned_message = None
         self.complications = NamedDice('complication')
         self.plot_points = Resources('plot points')
-        self.pools = DicePools()
+        self.pools = DicePools(self.roller)
         self.stress = GroupedNamedDice('stress')
         self.assets = NamedDice('asset')
 
@@ -341,10 +344,54 @@ class CortexGame:
             output += '\n'
         return output
 
+class Roller:
+    def __init__(self):
+        self.results = {}
+        for size in DIE_SIZES:
+            self.results[size] = [0] * size
+
+    def roll(self, size):
+        face = random.SystemRandom().randrange(1, int(size) + 1)
+        self.results[size][face - 1] += 1
+        return face
+
+    def output(self):
+        total = 0
+
+        frequency = ''
+        separator = ''
+        for size in self.results:
+            subtotal = sum(self.results[size])
+            total += subtotal
+            frequency += '**{0}D{1}** : {2} rolls'.format(separator, size, subtotal)
+            separator = '\n'
+            if subtotal > 0:
+                for face in range(1, size + 1):
+                    frequency += ' : **{0}** {1},{2}%'.format(
+                        face,
+                        self.results[size][face - 1],
+                        round(float(self.results[size][face - 1]) / float(subtotal) * 100.0, 1))
+
+        output = (
+        '**Randomness**\n'
+        'The bot has rolled {0} dice since starting up.\n'
+        '\n'
+        'Roll frequency statistics:\n'
+        '{1}'
+        ).format(total, frequency)
+
+        return output
+
 class CortexPal(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.games = []
+        self.startup_time = datetime.utcnow()
+        self.last_command_time = None
+        self.roller = Roller()
+
+    def update_command_time(self):
+        self.last_command_time = datetime.utcnow()
 
     def get_game_info(self, context):
         game_info = None
@@ -353,7 +400,7 @@ class CortexPal(commands.Cog):
             if game_key == existing_game[0]:
                 game_info = existing_game[1]
         if not game_info:
-            game_info = CortexGame()
+            game_info = CortexGame(self.roller)
             self.games.append([game_key, game_info])
         return game_info
 
@@ -361,6 +408,7 @@ class CortexPal(commands.Cog):
     async def info(self, ctx):
         """Display all game information."""
 
+        self.update_command_time()
         game = self.get_game_info(ctx)
         await ctx.send(game.output())
 
@@ -368,6 +416,7 @@ class CortexPal(commands.Cog):
     async def pin(self, ctx):
         """Pin a message to the channel to hold game information."""
 
+        self.update_command_time()
         pins = await ctx.channel.pins()
         for pin in pins:
             if pin.author == self.bot.user:
@@ -388,6 +437,7 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("comp command invoked")
+        self.update_command_time()
         output = ''
         try:
             if not args:
@@ -435,6 +485,7 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("pp command invoked")
+        self.update_command_time()
         output = ''
         update_pin = False
         try:
@@ -475,11 +526,15 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("roll command invoked")
+        self.update_command_time()
         results = {}
         try:
-            pool = DicePool()
-            for arg in args:
-                pool.add(Die(arg))
+            separated = separate_dice_and_name(args)
+            invalid_strings = separated['name']
+            dice = separated['dice']
+            if invalid_strings:
+                raise CortexError(DIE_STRING_ERROR, invalid_strings)
+            pool = DicePool(self.roller, dice)
             await ctx.send(pool.roll())
         except CortexError as err:
             await ctx.send(err)
@@ -499,6 +554,7 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("pool command invoked")
+        self.update_command_time()
         try:
             output = ''
             if not args:
@@ -540,6 +596,7 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("stress command invoked")
+        self.update_command_time()
         try:
             if not args:
                 output = 'Use the `$stress` command like this:\n`$stress add Amy 8` (gives Amy D8 stress)\n`$stress add Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
@@ -593,6 +650,7 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("asset command invoked")
+        self.update_command_time()
         output = ''
         try:
             output = ''
@@ -629,6 +687,22 @@ class CortexPal(commands.Cog):
         except:
             logging.error(traceback.format_exc())
             await ctx.send(UNEXPECTED_ERROR)
+
+    @commands.command()
+    async def report(self, ctx):
+        """
+        Report the bot's statistics.
+        """
+
+        output = (
+        '**CortexPal Usage Report**\n'
+        'Bot started up at UTC {0}.\n'
+        'Last user command was at UTC {1}.\n'
+        '\n'
+        ).format(self.startup_time, self.last_command_time)
+
+        output += self.roller.output()
+        await ctx.send(output)
 
 logging.info("Bot startup")
 bot.add_cog(CortexPal(bot))
