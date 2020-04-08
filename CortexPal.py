@@ -63,9 +63,6 @@ def separate_numbers_and_name(inputs):
             words.append(input.lower().capitalize())
     return {'numbers': numbers, 'name': ' '.join(words)}
 
-def clean_up_key(typed_key):
-    return ' '.join([word.lower().capitalize() for word in typed_key.split(' ')])
-
 def find_die_error(die):
     error = None
     if not die in ['4', '6', '8', '10', '12']:
@@ -253,23 +250,19 @@ class Resources:
         return not self.resources
 
     def add(self, name, qty=1):
-        key = clean_up_key(name)
-        if not key in self.resources:
-            self.resources[key] = qty
+        if not name in self.resources:
+            self.resources[name] = qty
         else:
-            self.resources[key] += qty
-        return self.output(key)
+            self.resources[name] += qty
+        return self.output(name)
 
     def remove(self, name, qty=1):
-        key = clean_up_key(name)
-        if not key in self.resources:
-            raise CortexError(HAS_NONE_ERROR, key, self.category)
-        if self.resources[key] < qty:
-            raise CortexError(HAS_ONLY_ERROR, key, self.resources[key], self.category)
-        self.resources[key] -= qty
-        if self.resources[key] < 0:
-            del self.resources[key]
-        return self.output(key)
+        if not name in self.resources:
+            raise CortexError(HAS_NONE_ERROR, name, self.category)
+        if self.resources[name] < qty:
+            raise CortexError(HAS_ONLY_ERROR, name, self.resources[name], self.category)
+        self.resources[name] -= qty
+        return self.output(name)
 
     def output(self, name):
         key = clean_up_key(name)
