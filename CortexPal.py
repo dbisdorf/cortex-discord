@@ -63,11 +63,6 @@ def separate_numbers_and_name(inputs):
             words.append(input.lower().capitalize())
     return {'numbers': numbers, 'name': ' '.join(words)}
 
-def find_die_error(die):
-    error = None
-    if not die in ['4', '6', '8', '10', '12']:
-        raise CortexError(DIE_FACE_ERROR, die)
-
 class Die:
     def __init__(self, expression):
         self.size = 4
