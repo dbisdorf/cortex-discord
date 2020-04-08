@@ -265,8 +265,7 @@ class Resources:
         return self.output(name)
 
     def output(self, name):
-        key = clean_up_key(name)
-        return '{0}: {1}'.format(key, self.resources[key])
+        return '{0}: {1}'.format(name, self.resources[name])
 
     def output_all(self):
         output = ''
