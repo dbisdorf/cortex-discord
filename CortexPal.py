@@ -13,6 +13,8 @@ UNTYPED_STRESS = 'General'
 
 ADD_SYNONYMS = ['add', 'give', 'new']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
+UP_SYNONYMS = ['stepup', 'up']
+DOWN_SYNONYMS = ['stepdown', 'down']
 
 DICE_EXPRESSION = re.compile('(\d*(d|D))?(4|6|8|10|12)')
 DIE_SIZES = [4, 6, 8, 10, 12]
@@ -392,10 +394,10 @@ class CortexPal(commands.Cog):
                         raise CortexError(DIE_EXCESS_ERROR)
                     output = game.complications.add(name, dice[0])
                     update_pin = True
-                elif args[0] == 'stepup':
+                elif args[0] in UP_SYNONYMS:
                     output = game.complications.step_up(name)
                     update_pin = True
-                elif args[0] == 'stepdown':
+                elif args[0] in DOWN_SYNONYMS:
                     output = game.complications.step_down(name)
                     update_pin = True
                 else:
@@ -515,10 +517,10 @@ class CortexPal(commands.Cog):
                         raise CortexError(DIE_EXCESS_ERROR)
                     output = 'Stress for ' + game.stress.add(owner_name, stress_name, dice[0])
                     update_pin = True
-                elif args[0] == 'stepup':
+                elif args[0] in UP_SYNONYMS:
                     output = 'Stress for ' + game.stress.step_up(owner_name, stress_name)
                     update_pin = True
-                elif args[0] == 'stepdown':
+                elif args[0] in DOWN_SYNONYMS:
                     output = 'Stress for ' + game.stress.step_down(owner_name, stress_name)
                     update_pin = True
                 else:
@@ -555,10 +557,10 @@ class CortexPal(commands.Cog):
                         raise CortexError(DIE_EXCESS_ERROR)
                     output = game.assets.add(name, dice[0])
                     update_pin = True
-                elif args[0] == 'stepup':
+                elif args[0] in UP_SYNONYMS:
                     output = game.assets.step_up(name)
                     update_pin = True
-                elif args[0] == 'stepdown':
+                elif args[0] in DOWN_SYNONYMS:
                     output = game.assets.step_down(name)
                     update_pin = True
                 else:
