@@ -212,7 +212,7 @@ class DicePool:
 
 class DicePools:
     def __init__(self, roller):
-        self.roller = self.roller
+        self.roller = roller
         self.pools = {}
 
     def is_empty(self):
@@ -313,6 +313,7 @@ class GroupedNamedDice:
 
 class CortexGame:
     def __init__(self, roller):
+        self.roller = roller
         self.pinned_message = None
         self.complications = NamedDice('complication')
         self.plot_points = Resources('plot points')
