@@ -119,7 +119,14 @@ class NamedDice:
             return 'New: ' + self.output(name)
         else:
             self.dice[name].combine(die)
-            return 'Raised ' + self.output(name)
+            return 'Raised: ' + self.output(name)
+
+    def remove(self, name):
+        if not name in self.dice:
+            raise CortexError(NOT_EXIST_ERROR, self.category)
+        output = 'Removed: ' + self.output(name)
+        del self.dice[name]
+        return output
 
     def step_up(self, name):
         if not name in self.dice:
@@ -435,6 +442,7 @@ class CortexPal(commands.Cog):
         $comp add 6 cloud of smoke (creates a D6 Cloud Of Smoke complication)
         $comp stepup confused (steps up the Confused complication)
         $comp stepdown dazed (steps down the Dazed complication)
+        $comp remove sun in your eyes (removes the Sun In Your Eyes complication)
         """
 
         logging.info("comp command invoked")
@@ -457,6 +465,9 @@ class CortexPal(commands.Cog):
                     elif dice[0].qty > 1:
                         raise CortexError(DIE_EXCESS_ERROR)
                     output = game.complications.add(name, dice[0])
+                    update_pin = True
+                elif args[0] in REMOVE_SYNOYMS:
+                    output = game.complications.remove(name)
                     update_pin = True
                 elif args[0] in UP_SYNONYMS:
                     output = game.complications.step_up(name)
@@ -648,6 +659,7 @@ class CortexPal(commands.Cog):
         $asset add 6 big wrench (adds a D6 Big Wrench asset)
         $asset stepup fast car (steps up the Fast Car asset)
         $asset stepdown nice outfit (steps down the Nice Outfit asset)
+        $asset remove jetpack (removes the Jetpack asset)
         """
 
         logging.info("asset command invoked")
@@ -671,6 +683,9 @@ class CortexPal(commands.Cog):
                     elif dice[0].qty > 1:
                         raise CortexError(DIE_EXCESS_ERROR)
                     output = game.assets.add(name, dice[0])
+                    update_pin = True
+                elif args[0] in REMOVE_SYNOYMS:
+                    output = game.assets.remove(name)
                     update_pin = True
                 elif args[0] in UP_SYNONYMS:
                     output = game.assets.step_up(name)
