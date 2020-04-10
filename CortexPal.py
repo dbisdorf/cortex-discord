@@ -27,7 +27,7 @@ DIE_EXCESS_ERROR = 'You can\'t use that many dice.'
 DIE_MISSING_ERROR = 'There were no valid dice in that command.'
 DIE_LACK_ERROR = 'That pool only has {0}D{1}.'
 DIE_NONE_ERROR = 'That pool doesn\'t have any D{0}s.'
-NOT_EXIST_ERROR = 'That {0} doesn\'t exist yet.'
+NOT_EXIST_ERROR = 'There\'s no such {0} yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
@@ -294,6 +294,12 @@ class GroupedNamedDice:
         if not group in self.groups:
             self.groups[group] = NamedDice(self.category)
         self.groups[group].add(name, die)
+        return self.output(group)
+
+    def remove(self, group, name):
+        if not group in self.groups:
+            raise CortexError(HAS_NONE_ERROR, group, self.category)
+        self.groups[group].remove(name)
         return self.output(group)
 
     def step_up(self, group, name):
@@ -632,6 +638,9 @@ class CortexPal(commands.Cog):
                     elif dice[0].qty > 1:
                         raise CortexError(DIE_EXCESS_ERROR)
                     output = 'Stress for ' + game.stress.add(owner_name, stress_name, dice[0])
+                    update_pin = True
+                elif args[0] in REMOVE_SYNOYMS:
+                    output = 'Stress for ' + game.stress.remove(owner_name, stress_name)
                     update_pin = True
                 elif args[0] in UP_SYNONYMS:
                     output = 'Stress for ' + game.stress.step_up(owner_name, stress_name)
