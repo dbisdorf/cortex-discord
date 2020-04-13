@@ -453,11 +453,11 @@ class CortexPal(commands.Cog):
 
         logging.info("comp command invoked")
         self.update_command_time()
-        output = ''
         try:
             if not args:
-                output = 'Use the `$comp` command like this:\n`$comp add 6 cloud of smoke` (creates a D6 Cloud Of Smoke complication)\n`$comp stepdown dazed` (steps down the Dazed complication)'
+                await ctx.send_help("comp")
             else:
+                output = ''
                 game = self.get_game_info(ctx)
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
@@ -485,7 +485,7 @@ class CortexPal(commands.Cog):
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$comp')
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
-            await ctx.send(output)
+                await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
         except:
@@ -504,12 +504,12 @@ class CortexPal(commands.Cog):
 
         logging.info("pp command invoked")
         self.update_command_time()
-        output = ''
-        update_pin = False
         try:
             if not args:
-                output = 'Use the `$pp` command like this:\n`$pp add Alice 3` (gives Alice 3 PP)\n`$pp remove Alice` (spends one of Alice\'s PP)'
+                await ctx.send_help("pp")
             else:
+                output = ''
+                update_pin = False
                 game = self.get_game_info(ctx)
                 separated = separate_numbers_and_name(args[1:])
                 name = separated['name']
@@ -524,9 +524,9 @@ class CortexPal(commands.Cog):
                     update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$pp')
-            if update_pin and game.pinned_message:
-                await game.pinned_message.edit(content=game.output())
-            await ctx.send(output)
+                if update_pin and game.pinned_message:
+                    await game.pinned_message.edit(content=game.output())
+                await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
         except:
@@ -547,13 +547,16 @@ class CortexPal(commands.Cog):
         self.update_command_time()
         results = {}
         try:
-            separated = separate_dice_and_name(args)
-            invalid_strings = separated['name']
-            dice = separated['dice']
-            if invalid_strings:
-                raise CortexError(DIE_STRING_ERROR, invalid_strings)
-            pool = DicePool(self.roller, dice)
-            await ctx.send(pool.roll())
+            if not args:
+                await ctx.send_help("roll")
+            else:
+                separated = separate_dice_and_name(args)
+                invalid_strings = separated['name']
+                dice = separated['dice']
+                if invalid_strings:
+                    raise CortexError(DIE_STRING_ERROR, invalid_strings)
+                pool = DicePool(self.roller, dice)
+                await ctx.send(pool.roll())
         except CortexError as err:
             await ctx.send(err)
         except:
@@ -574,10 +577,10 @@ class CortexPal(commands.Cog):
         logging.info("pool command invoked")
         self.update_command_time()
         try:
-            output = ''
             if not args:
-                output = 'Use the `$pool` command like this:\n`$pool add doom 6 2d8` (gives the Doom pool a D6 and 2D8)\n`$pool remove doom 10` (spends a D10 from the Doom pool)'
+                await ctx.send_help("pool")
             else:
+                output = ''
                 update_pin = False
                 game = self.get_game_info(ctx)
                 separated = separate_dice_and_name(args[1:])
@@ -595,7 +598,7 @@ class CortexPal(commands.Cog):
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$pool')
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
-            await ctx.send(output)
+                await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
         except:
@@ -617,7 +620,7 @@ class CortexPal(commands.Cog):
         self.update_command_time()
         try:
             if not args:
-                output = 'Use the `$stress` command like this:\n`$stress add Amy 8` (gives Amy D8 stress)\n`$stress add Ben Mental 6` (gives Ben D6 mental stress)\n`$stress stepup Cat Social` (steps up Cat\'s social stress)'
+                await ctx.send_help("stress")
             else:
                 output = ''
                 update_pin = False
@@ -650,9 +653,9 @@ class CortexPal(commands.Cog):
                     update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$stress')
-            if update_pin and game.pinned_message:
-                await game.pinned_message.edit(content=game.output())
-            await ctx.send(output)
+                if update_pin and game.pinned_message:
+                    await game.pinned_message.edit(content=game.output())
+                await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
         except:
@@ -675,10 +678,10 @@ class CortexPal(commands.Cog):
         self.update_command_time()
         output = ''
         try:
-            output = ''
             if not args:
-                output = 'This is where we give syntax help for the command'
+                await ctx.send_help("asset")
             else:
+                output = ''
                 game = self.get_game_info(ctx)
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
@@ -706,7 +709,7 @@ class CortexPal(commands.Cog):
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$asset')
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
-            await ctx.send(output)
+                await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
         except:
