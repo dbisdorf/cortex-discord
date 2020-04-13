@@ -4,6 +4,7 @@ import os
 import traceback
 import re
 import logging
+import logging.handlers
 import configparser
 import datetime
 from discord.ext import commands
@@ -33,9 +34,12 @@ HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
+# Some initialization.
+
 config = configparser.ConfigParser()
 config.read('cortexpal.ini')
-logging.basicConfig(filename=config['logging']['file'], format='%(asctime)s %(message)s', level=logging.INFO)
+logHandler = logging.handlers.TimedRotatingFileHandler(filename=config['logging']['file'], when='D', backupCount=9)
+logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.INFO)
 TOKEN = config['discord']['token']
 bot = commands.Bot(command_prefix='$')
 
@@ -731,6 +735,8 @@ class CortexPal(commands.Cog):
 
         output += self.roller.output()
         await ctx.send(output)
+
+# Start the bot.
 
 logging.info("Bot startup")
 bot.add_cog(CortexPal(bot))
