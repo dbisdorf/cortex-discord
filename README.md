@@ -5,7 +5,7 @@ Note that this bot is still in early development. You may encounter bugs or gaps
 
 ## Inviting
 
-As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server...
+As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by *(instructions to appear here when the bot is available)*
 
 A few warnings about the public bot:
 
