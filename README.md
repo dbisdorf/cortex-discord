@@ -5,7 +5,7 @@ Note that this bot is still in early development. You may encounter bugs or gaps
 
 ## Inviting
 
-As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by *(instructions to appear here when the bot is available)*
+As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by *(instructions to appear here when the bot is available).* The bot only requires permission to send and manage messages.
 
 A few warnings about the public bot:
 
@@ -47,3 +47,5 @@ token=abcdefghijklmnopqrstuvwxyz
 In the [logging] section, the "file" attribute should hold the name of the log file you wish to use.
 
 In the [discord] section, the "token" attribute must contain your secure Discord bot token. Take whatever steps are necessary on your host machine to keep this information secret.
+
+When inviting the bot to a server, assign it the "bot" scope and the "Send Messages" and "Manage Messages" permissions.
