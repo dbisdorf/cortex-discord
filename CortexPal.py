@@ -14,7 +14,7 @@ PREFIX = '$'
 
 UNTYPED_STRESS = 'General'
 
-ADD_SYNONYMS = ['add', 'give', 'new']
+ADD_SYNONYMS = ['add', 'give', 'new', 'create']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
 UP_SYNONYMS = ['stepup', 'up']
 DOWN_SYNONYMS = ['stepdown', 'down']
@@ -332,6 +332,9 @@ class CortexGame:
     def __init__(self, roller):
         self.roller = roller
         self.pinned_message = None
+        self.clean()
+
+    def clean(self):
         self.complications = NamedDice('complication')
         self.plot_points = Resources('plot points')
         self.pools = DicePools(self.roller)
@@ -385,7 +388,7 @@ class Roller:
             separator = '\n'
             if subtotal > 0:
                 for face in range(1, size + 1):
-                    frequency += ' : **{0}** {1},{2}%'.format(
+                    frequency += ' : **{0}** {1}x {2}%'.format(
                         face,
                         self.results[size][face - 1],
                         round(float(self.results[size][face - 1]) / float(subtotal) * 100.0, 1))
@@ -618,6 +621,8 @@ class CortexPal(commands.Cog):
         $stress add amy 8 (gives Amy D8 general stress)
         $stress add ben mental 6 (gives Ben D6 Mental stress)
         $stress stepup cat social (steps up Cat's Social stress)
+        $stress stepdown doe physical (steps down Doe's Physical stress)
+        $stress remove eve psychic (removes Eve's Psychic stress)
         """
 
         logging.info("stress command invoked")
@@ -721,20 +726,46 @@ class CortexPal(commands.Cog):
             await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
+    async def clean(self, ctx):
+        """
+        Reset all game data for a channel.
+        """
+
+        logging.info("clean command invoked")
+        self.update_command_time()
+        try:
+            game = self.get_game_info(ctx)
+            game.clean()
+            if game.pinned_message:
+                await game.pinned_message.edit(content=game.output())
+            await ctx.send('Cleaned up all game information.')
+        except CortexError as err:
+            await ctx.send(err)
+        except:
+            logging.error(traceback.format_exc())
+            await ctx.send(UNEXPECTED_ERROR)
+
+    @commands.command()
     async def report(self, ctx):
         """
         Report the bot's statistics.
         """
+
+        start_formatted = self.startup_time.isoformat(sep=' ', timespec='seconds')
+        last_formatted = '(no user commands yet)'
+        if self.last_command_time:
+            last_formatted = self.last_command_time.isoformat(sep=' ', timespec='seconds')
 
         output = (
         '**CortexPal Usage Report**\n'
         'Bot started up at UTC {0}.\n'
         'Last user command was at UTC {1}.\n'
         '\n'
-        ).format(self.startup_time, self.last_command_time)
+        ).format(start_formatted, last_formatted)
 
         output += self.roller.output()
         await ctx.send(output)
+
 
 # Start the bot.
 
