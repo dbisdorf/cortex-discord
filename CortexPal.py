@@ -99,6 +99,9 @@ class Die:
         elif self.size < 12:
             self.size += 2
 
+    def is_max(self):
+        return self.size == 12
+
     def output(self):
         if self.qty > 1:
             return '{0}D{1}'.format(self.qty, self.size)
@@ -121,6 +124,8 @@ class NamedDice:
         if not name in self.dice:
             self.dice[name] = die
             return 'New: ' + self.output(name)
+        elif self.dice[name].is_max():
+            return 'This would step up beyond {0}'.format(self.output(name))
         else:
             self.dice[name].combine(die)
             return 'Raised: ' + self.output(name)
@@ -135,6 +140,8 @@ class NamedDice:
     def step_up(self, name):
         if not name in self.dice:
             raise CortexError(NOT_EXIST_ERROR, self.category)
+        if self.dice[name].is_max():
+            return 'This would step up beyond {0}'.format(self.output(name))
         self.dice[name].step_up()
         return 'Stepped up: ' + self.output(name)
 
@@ -297,22 +304,18 @@ class GroupedNamedDice:
     def add(self, group, name, die):
         if not group in self.groups:
             self.groups[group] = NamedDice(self.category)
-        self.groups[group].add(name, die)
-        return self.output(group)
+        return self.groups[group].add(name, die)
 
     def remove(self, group, name):
         if not group in self.groups:
             raise CortexError(HAS_NONE_ERROR, group, self.category)
-        self.groups[group].remove(name)
-        return self.output(group)
+        return self.groups[group].remove(name)
 
     def step_up(self, group, name):
-        self.groups[group].step_up(name)
-        return self.output(group)
+        return self.groups[group].step_up(name)
 
     def step_down(self, group, name):
-        self.groups[group].step_down(name)
-        return self.output(group)
+        return self.groups[group].step_down(name)
 
     def get_all_names(self):
         return list(self.dice)
@@ -662,16 +665,16 @@ class CortexPal(commands.Cog):
                         raise CortexError(DIE_EXCESS_ERROR)
                     elif dice[0].qty > 1:
                         raise CortexError(DIE_EXCESS_ERROR)
-                    output = 'Stress for ' + game.stress.add(owner_name, stress_name, dice[0])
+                    output = '{0} Stress for {1}'.format(game.stress.add(owner_name, stress_name, dice[0]), owner_name)
                     update_pin = True
                 elif args[0] in REMOVE_SYNOYMS:
-                    output = 'Stress for ' + game.stress.remove(owner_name, stress_name)
+                    output = '{0} Stress for {1}'.format(game.stress.remove(owner_name, stress_name), owner_name)
                     update_pin = True
                 elif args[0] in UP_SYNONYMS:
-                    output = 'Stress for ' + game.stress.step_up(owner_name, stress_name)
+                    output = '{0} Stress for {1}'.format(game.stress.step_up(owner_name, stress_name), owner_name)
                     update_pin = True
                 elif args[0] in DOWN_SYNONYMS:
-                    output = 'Stress for ' + game.stress.step_down(owner_name, stress_name)
+                    output = '{0} Stress for {1}'.format(game.stress.step_down(owner_name, stress_name), owner_name)
                     update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$stress')
