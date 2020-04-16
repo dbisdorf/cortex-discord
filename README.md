@@ -5,7 +5,9 @@ Note that this bot is still in early development. You may encounter bugs or gaps
 
 ## Inviting
 
-As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by *(instructions to appear here when the bot is available).* The bot only requires permission to send and manage messages.
+As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by browsing to this URL: https://discordapp.com/api/oauth2/authorize?client_id=694239819454480445&permissions=10240&scope=bot
+
+The bot only requires permission to send and manage messages.
 
 A few warnings about the public bot:
 
