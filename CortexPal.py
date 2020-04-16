@@ -321,7 +321,9 @@ class GroupedNamedDice:
         return list(self.dice)
 
     def output(self, group):
-        return group + ': ' + self.groups[group].output_all(separator=', ')
+        if self.groups[group].is_empty():
+            return '{0}: None'.format(group)
+        return '{0}: {1}'.format(group, self.groups[group].output_all(separator=', '))
 
     def output_all(self):
         output = ''
