@@ -312,9 +312,13 @@ class GroupedNamedDice:
         return self.groups[group].remove(name)
 
     def step_up(self, group, name):
+        if not group in self.groups:
+            raise CortexError(HAS_NONE_ERROR, group, self.category)
         return self.groups[group].step_up(name)
 
     def step_down(self, group, name):
+        if not group in self.groups:
+            raise CortexError(HAS_NONE_ERROR, group, self.category)
         return self.groups[group].step_down(name)
 
     def get_all_names(self):
