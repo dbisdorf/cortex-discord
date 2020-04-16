@@ -425,6 +425,19 @@ class CortexPal(commands.Cog):
             self.games.append([game_key, game_info])
         return game_info
 
+    """
+    def cog_command_error(self, ctx, error):
+        logging.error(error)
+
+    @commands.Cog.listener()
+    async def on_error(self, event, *args, **kwargs):
+        logging.error(traceback.format_exc())
+    """
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
+        logging.error(error)
+
     @commands.command()
     async def info(self, ctx):
         """Display all game information."""
