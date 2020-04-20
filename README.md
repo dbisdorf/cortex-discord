@@ -1,6 +1,8 @@
 # cortex-discord
 A Discord bot to assist Cortex Prime RPG players.
 
+This bot uses the discord.py library (https://pypi.org/project/discord.py/).
+
 Note that this bot is still in early development. You may encounter bugs or gaps in functionality. Feel free to contact me with any bug reports, or, if you prefer, you can file them here.
 
 ## Inviting
