@@ -201,8 +201,8 @@ class DicePool:
                 stored_die.qty -= die.qty
                 if stored_die.qty == 0:
                     self.dice[index] = None
-        else:
-            raise CortexError(DIE_NONE_ERROR, die.size)
+            else:
+                raise CortexError(DIE_NONE_ERROR, die.size)
         return self.output()
 
     def roll(self):
