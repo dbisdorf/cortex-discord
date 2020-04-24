@@ -14,15 +14,15 @@ from datetime import datetime
 
 PREFIX = '$'
 
+DICE_EXPRESSION = re.compile('(\d*(d|D))?(4|6|8|10|12)')
+DIE_SIZES = [4, 6, 8, 10, 12]
+
 UNTYPED_STRESS = 'General'
 
 ADD_SYNONYMS = ['add', 'give', 'new', 'create']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
 UP_SYNONYMS = ['stepup', 'up']
 DOWN_SYNONYMS = ['stepdown', 'down']
-
-DICE_EXPRESSION = re.compile('(\d*(d|D))?(4|6|8|10|12)')
-DIE_SIZES = [4, 6, 8, 10, 12]
 
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
 DIE_STRING_ERROR = '{0} is not a valid die or dice.'
@@ -35,6 +35,8 @@ HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
+
+ABOUT_TEXT = 'CortexPal v0.2: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -88,7 +90,7 @@ cursor.execute(
 # Set up bot.
 
 TOKEN = config['discord']['token']
-bot = commands.Bot(command_prefix='$')
+bot = commands.Bot(command_prefix='$', description=ABOUT_TEXT)
 
 # Classes and functions follow.
 
