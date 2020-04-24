@@ -411,30 +411,52 @@ class DicePools:
         return output
 
 class Resources:
-    def __init__(self, game, category):
+    def __init__(self, category, owner=None):
         self.resources = {}
         self.category = category
+        self.owner = owner
+        self.guid = None
+
+    def fetch_from_db(self):
+        cursor.execute("SELECT * FROM RESOURCE WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category", {'owner_guid':self.owner.guid, 'category':self.category})
+        fetching = True
+        while fetching:
+            row = cursor.fetchone()
+            if row:
+                self.resources[row['NAME']] = {'qty':row['QTY'], 'guid':row['GUID']}
+            else:
+                fetching = False
 
     def is_empty(self):
         return not self.resources
 
     def add(self, name, qty=1):
         if not name in self.resources:
-            self.resources[name] = qty
+            guid = uuid.uuid1().hex
+            self.resources[name] = {'qty':qty, 'guid':guid}
+            if self.owner:
+                cursor.execute("INSERT INTO RESOURCE (GUID, CATEGORY, NAME, QTY, OWNER_GUID) VALUES (?, ?, ?, ?, ?)", (guid, self.category, name, qty, self.owner.guid))
+                db.commit()
         else:
-            self.resources[name] += qty
+            self.resources[name]['qty'] += qty
+            if self.owner:
+                cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:guid", {'qty':self.resources[name][qty], 'guid':self.resources[name][guid]})
+                db.commit()
         return self.output(name)
 
     def remove(self, name, qty=1):
         if not name in self.resources:
             raise CortexError(HAS_NONE_ERROR, name, self.category)
-        if self.resources[name] < qty:
-            raise CortexError(HAS_ONLY_ERROR, name, self.resources[name], self.category)
-        self.resources[name] -= qty
+        if self.resources[name]['qty'] < qty:
+            raise CortexError(HAS_ONLY_ERROR, name, self.resources[name]['qty'], self.category)
+        self.resources[name]['qty'] -= qty
+        if self.owner:
+            cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:guid", {'qty':self.resources[name]['qty'], 'guid':self.resources[name]['guid']})
+            db.commit()
         return self.output(name)
 
     def output(self, name):
-        return '{0}: {1}'.format(name, self.resources[name])
+        return '{0}: {1}'.format(name, self.resources[name]['qty'])
 
     def output_all(self):
         output = ''
@@ -507,14 +529,18 @@ class CortexGame:
         if not self.complications.guid:
             self.complications.store_in_db()
 
+        self.assets = NamedDice('asset', owner=self)
+        self.assets.fetch_from_db()
+        if not self.assets.guid:
+            self.assets.store_in_db()
+
         self.pools = DicePools(self.roller, owner=self)
         self.pools.fetch_from_db()
 
-        self.plot_points = Resources(self.guid, 'plot points')
+        self.plot_points = Resources('plot points', owner=self)
+        self.plot_points.fetch_from_db()
 
         self.stress = GroupedNamedDice(self.guid, 'stress')
-
-        self.assets = NamedDice(self.guid, 'asset')
 
     def clean(self):
         self.complications = NamedDice('complication')
