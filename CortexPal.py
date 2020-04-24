@@ -72,7 +72,7 @@ cursor.execute(
 'CREATE TABLE IF NOT EXISTS DICE_COLLECTION'
 '(GUID VARCHAR(32) PRIMARY KEY,'
 'CATEGORY VARCHAR(64) NOT NULL,'
-'NAME VARCHAR(64),'
+'GRP VARCHAR(64),'
 'OWNER_GUID VARCHAR(32) NOT NULL)'
 )
 
@@ -203,14 +203,15 @@ NamedDice: a collection of user-named single-die traits.
 Suitable for complications and assets.
 """
 class NamedDice:
-    def __init__(self, category, owner=None):
+    def __init__(self, category, group, owner=None):
         self.dice = {}
         self.category = category
+        self.group = group
         self.owner = owner
         self.guid = None
 
     def fetch_from_db(self):
-        cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND NAME IS NULL', {'owner_guid':self.owner.guid, 'category':self.category})
+        cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND GRP=:group', {'owner_guid':self.owner.guid, 'category':self.category, 'group':self.group})
         row = cursor.fetchone()
         if row:
             self.guid = row['GUID']
@@ -220,7 +221,7 @@ class NamedDice:
 
     def store_in_db(self):
         self.guid = uuid.uuid1().hex
-        cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, OWNER_GUID) VALUES (?, ?, ?)', (self.guid, self.category, self.owner.guid))
+        cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, OWNER_GUID) VALUES (?, ?, ?, ?)', (self.guid, self.category, self.group, self.owner.guid))
         db.commit()
 
     def remove_from_db(self):
@@ -231,18 +232,19 @@ class NamedDice:
     def is_empty(self):
         return not self.dice
 
-    def add(self, die):
+    def add(self, name, die):
         die.owner = self
-        if not die.name in self.dice:
+        die.name = name
+        if not name in self.dice:
             if self.guid:
                 die.store_in_db()
-            self.dice[die.name] = die
-            return 'New: ' + self.output(die.name)
-        elif self.dice[die.name].is_max():
+            self.dice[name] = die
+            return 'New: ' + self.output(name)
+        elif self.dice[name].is_max():
             return 'This would step up beyond {0}'.format(self.output(name))
         else:
-            self.dice[die.name].combine(die)
-            return 'Raised: ' + self.output(die.name)
+            self.dice[name].combine(die)
+            return 'Raised: ' + self.output(name)
 
     def remove(self, name):
         if not name in self.dice:
@@ -291,9 +293,9 @@ Suitable for doom pools, crisis pools, and growth pools.
 Not necessarily persisted in the database.
 """
 class DicePool:
-    def __init__(self, roller, name, incoming_dice=[], owner=None):
+    def __init__(self, roller, group, incoming_dice=[], owner=None):
         self.roller = roller
-        self.name = name
+        self.group = group
         self.dice = [None, None, None, None, None]
         self.owner = owner
         self.guid = None
@@ -305,7 +307,7 @@ class DicePool:
 
     def store_in_db(self):
         self.guid = uuid.uuid1().hex
-        cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, NAME, OWNER_GUID) VALUES (?, 'pool', ?, ?)", (self.guid, self.name, self.owner.guid))
+        cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, OWNER_GUID) VALUES (?, 'pool', ?, ?)", (self.guid, self.group, self.owner.guid))
         db.commit()
 
     def is_empty(self):
@@ -374,7 +376,7 @@ class DicePools:
         while fetching:
             row = cursor.fetchone()
             if row:
-                new_pool = DicePool(self.roller, name=row['NAME'], owner=self.owner)
+                new_pool = DicePool(self.roller, row['GRP'], owner=self.owner)
                 new_pool.already_in_db(row['GUID'])
                 fetched_dice = fetch_all_dice_for_owner(new_pool)
                 new_pool.add(fetched_dice)
@@ -467,16 +469,31 @@ class Resources:
         return output
 
 class GroupedNamedDice:
-    def __init__(self, game, category):
+    def __init__(self, category, owner=None):
         self.groups = {}
         self.category = category
+        self.owner = owner
+
+    def fetch_from_db(self):
+        cursor.execute("SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category", {'owner_guid':self.owner.guid, 'category':self.category})
+        fetching = True
+        while fetching:
+            row = cursor.fetchone()
+            if row:
+                new_group = NamedDice(self.category, row['GRP'], owner=self.owner)
+                new_group.already_in_db(row['GUID'])
+                self.groups[row['GRP']] = new_group
+            else:
+                fetching = False
 
     def is_empty(self):
         return not self.groups
 
     def add(self, group, name, die):
         if not group in self.groups:
-            self.groups[group] = NamedDice(self.category)
+            self.groups[group] = NamedDice(self.category, group, owner=self.owner)
+            if self.owner:
+                self.groups[group].store_in_db()
         return self.groups[group].add(name, die)
 
     def remove(self, group, name):
@@ -524,12 +541,12 @@ class CortexGame:
         else:
             self.guid = row['GUID']
 
-        self.complications = NamedDice('complication', owner=self)
+        self.complications = NamedDice('complication', None, owner=self)
         self.complications.fetch_from_db()
         if not self.complications.guid:
             self.complications.store_in_db()
 
-        self.assets = NamedDice('asset', owner=self)
+        self.assets = NamedDice('asset', None, owner=self)
         self.assets.fetch_from_db()
         if not self.assets.guid:
             self.assets.store_in_db()
@@ -540,7 +557,7 @@ class CortexGame:
         self.plot_points = Resources('plot points', owner=self)
         self.plot_points.fetch_from_db()
 
-        self.stress = GroupedNamedDice(self.guid, 'stress')
+        self.stress = GroupedNamedDice('stress', owner=self)
 
     def clean(self):
         self.complications = NamedDice('complication')
@@ -698,8 +715,7 @@ class CortexPal(commands.Cog):
                         raise CortexError(DIE_EXCESS_ERROR)
                     elif dice[0].qty > 1:
                         raise CortexError(DIE_EXCESS_ERROR)
-                    dice[0].name = name
-                    output = game.complications.add(dice[0])
+                    output = game.complications.add(name, dice[0])
                     update_pin = True
                 elif args[0] in REMOVE_SYNOYMS:
                     output = game.complications.remove(name)
