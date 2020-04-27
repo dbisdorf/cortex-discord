@@ -46,7 +46,7 @@ config.read('cortexpal.ini')
 # Set up logging.
 
 logHandler = logging.handlers.TimedRotatingFileHandler(filename=config['logging']['file'], when='D', backupCount=9)
-logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.INFO)
+logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.DEBUG)
 
 # Set up database.
 
@@ -213,11 +213,17 @@ class NamedDice:
         self.guid = None
 
     def fetch_from_db(self):
-        cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND GRP=:group', {'owner_guid':self.owner.guid, 'category':self.category, 'group':self.group})
+        if self.group:
+            cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND GRP=:group', {'owner_guid':self.owner.guid, 'category':self.category, 'group':self.group})
+        else:
+            cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND GRP IS NULL', {'owner_guid':self.owner.guid, 'category':self.category})
+        logging.debug('going to fetch a {0}'.format(self.category))
         row = cursor.fetchone()
+        logging.debug('row is {0}'.format(row))
         if row:
             self.guid = row['GUID']
             fetched_dice = fetch_all_dice_for_owner(self)
+            logging.debug('fetched dice are {0}'.format(fetched_dice))
             for die in fetched_dice:
                 self.dice[die.name] = die
 
@@ -382,29 +388,29 @@ class DicePools:
                 new_pool.already_in_db(row['GUID'])
                 fetched_dice = fetch_all_dice_for_owner(new_pool)
                 new_pool.add(fetched_dice)
-                self.pools[new_pool.name] = new_pool
+                self.pools[new_pool.group] = new_pool
             else:
                 fetching = False
 
     def is_empty(self):
         return not self.pools
 
-    def add(self, name, dice):
-        if not name in self.pools:
-            self.pools[name] = DicePool(self.roller, name, owner=self.owner)
+    def add(self, group, dice):
+        if not group in self.pools:
+            self.pools[group] = DicePool(self.roller, group, owner=self.owner)
             if self.owner:
-                self.pools[name].store_in_db()
-        self.pools[name].add(dice)
-        return '{0}: {1}'.format(name, self.pools[name].output())
+                self.pools[group].store_in_db()
+        self.pools[group].add(dice)
+        return '{0}: {1}'.format(group, self.pools[group].output())
 
-    def remove(self, name, dice):
-        if not name in self.pools:
+    def remove(self, group, dice):
+        if not group in self.pools:
             raise CortexError(NOT_EXIST_ERROR, 'pool')
-        self.pools[name].remove(dice)
-        return '{0}: {1}'.format(name, self.pools[name].output())
+        self.pools[group].remove(dice)
+        return '{0}: {1}'.format(group, self.pools[group].output())
 
-    def roll(self, name):
-        return self.pools[name].roll()
+    def roll(self, group):
+        return self.pools[group].roll()
 
     def output(self):
         output = ''
@@ -544,6 +550,7 @@ class CortexGame:
             self.guid = row['GUID']
 
         self.complications = NamedDice('complication', None, owner=self)
+        logging.debug('going to fetch complications from db')
         self.complications.fetch_from_db()
         if not self.complications.guid:
             self.complications.store_in_db()
