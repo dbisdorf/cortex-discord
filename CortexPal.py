@@ -227,6 +227,9 @@ class NamedDice:
             for die in fetched_dice:
                 self.dice[die.name] = die
 
+    def already_in_db(self, guid):
+        self.guid = guid
+
     def store_in_db(self):
         self.guid = uuid.uuid1().hex
         cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, OWNER_GUID) VALUES (?, ?, ?, ?)', (self.guid, self.category, self.group, self.owner.guid))
@@ -318,6 +321,11 @@ class DicePool:
         cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, OWNER_GUID) VALUES (?, 'pool', ?, ?)", (self.guid, self.group, self.owner.guid))
         db.commit()
 
+    def fetch_dice_from_db(self):
+        fetched_dice = fetch_all_dice_for_owner(self)
+        for die in fetched_dice:
+            self.dice[DIE_SIZES.index(die.size)] = die
+
     def is_empty(self):
         return not self.dice
 
@@ -386,8 +394,7 @@ class DicePools:
             if row:
                 new_pool = DicePool(self.roller, row['GRP'], owner=self.owner)
                 new_pool.already_in_db(row['GUID'])
-                fetched_dice = fetch_all_dice_for_owner(new_pool)
-                new_pool.add(fetched_dice)
+                new_pool.fetch_dice_from_db()
                 self.pools[new_pool.group] = new_pool
             else:
                 fetching = False
@@ -483,16 +490,19 @@ class GroupedNamedDice:
         self.owner = owner
 
     def fetch_from_db(self):
-        cursor.execute("SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category", {'owner_guid':self.owner.guid, 'category':self.category})
+        cursor.execute("SELECT GRP FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category", {'owner_guid':self.owner.guid, 'category':self.category})
+        groups_to_fetch = []
         fetching = True
         while fetching:
             row = cursor.fetchone()
             if row:
-                new_group = NamedDice(self.category, row['GRP'], owner=self.owner)
-                new_group.already_in_db(row['GUID'])
-                self.groups[row['GRP']] = new_group
+                groups_to_fetch.append(row['GRP'])
             else:
                 fetching = False
+        for group_to_fetch in groups_to_fetch:
+            new_group = NamedDice(self.category, group_to_fetch, owner=self.owner)
+            new_group.fetch_from_db()
+            self.groups[group_to_fetch] = new_group
 
     def is_empty(self):
         return not self.groups
@@ -567,6 +577,7 @@ class CortexGame:
         self.plot_points.fetch_from_db()
 
         self.stress = GroupedNamedDice('stress', owner=self)
+        self.stress.fetch_from_db()
 
     def clean(self):
         self.complications = NamedDice('complication')
