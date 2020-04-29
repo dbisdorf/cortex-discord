@@ -67,7 +67,7 @@ cursor.execute(
 'NAME VARCHAR(64),'
 'SIZE INT NOT NULL,'
 'QTY INT NOT NULL,'
-'OWNER_GUID VARCHAR(32) NOT NULL)'
+'PARENT_GUID VARCHAR(32) NOT NULL)'
 )
 
 cursor.execute(
@@ -75,7 +75,7 @@ cursor.execute(
 '(GUID VARCHAR(32) PRIMARY KEY,'
 'CATEGORY VARCHAR(64) NOT NULL,'
 'GRP VARCHAR(64),'
-'OWNER_GUID VARCHAR(32) NOT NULL)'
+'PARENT_GUID VARCHAR(32) NOT NULL)'
 )
 
 cursor.execute(
@@ -84,7 +84,7 @@ cursor.execute(
 'CATEGORY VARCHAR(64) NOT NULL,'
 'NAME VARCHAR(64) NOT NULL,'
 'QTY INT NOT NULL,'
-'OWNER_GUID VARCHAR(64) NOT NULL)'
+'PARENT_GUID VARCHAR(64) NOT NULL)'
 )
 
 # Set up bot.
@@ -122,27 +122,27 @@ def separate_numbers_and_name(inputs):
             words.append(input.lower().capitalize())
     return {'numbers': numbers, 'name': ' '.join(words)}
 
-def fetch_all_dice_for_owner(owner):
+def fetch_all_dice_for_parent(db_parent):
     dice = []
-    cursor.execute('SELECT * FROM DIE WHERE OWNER_GUID=:owner_guid', {'owner_guid':owner.guid})
+    cursor.execute('SELECT * FROM DIE WHERE PARENT_GUID=:PARENT_GUID', {'PARENT_GUID':db_parent.db_guid})
     fetching = True
     while fetching:
         row = cursor.fetchone()
         if row:
-            die = Die(name=row['NAME'], size=row['SIZE'], qty=row['QTY'], owner=owner)
-            die.already_in_db(row['GUID'])
+            die = Die(name=row['NAME'], size=row['SIZE'], qty=row['QTY'])
+            die.already_in_db(db_parent, row['GUID'])
             dice.append(die)
         else:
             fetching = False
     return dice
 
 class Die:
-    def __init__(self, expression=None, name=None, size=4, qty=1, owner=None):
+    def __init__(self, expression=None, name=None, size=4, qty=1):
         self.name = name
         self.size = size
         self.qty = qty
-        self.owner = owner
-        self.guid = None
+        self.db_parent = db_parent
+        self.db_guid = None
         if expression:
             if not DICE_EXPRESSION.fullmatch(expression):
                 raise CortexError(DIE_STRING_ERROR, expression)
@@ -154,17 +154,19 @@ class Die:
                     self.qty = int(numbers[0])
                 self.size = int(numbers[1])
 
-    def already_in_db(self, guid):
-        self.guid = guid
-
-    def store_in_db(self):
-        self.guid = uuid.uuid1().hex
-        cursor.execute('INSERT INTO DIE (GUID, NAME, SIZE, QTY, OWNER_GUID) VALUES (?, ?, ?, ?, ?)', (self.guid, self.name, self.size, self.qty, self.owner.guid))
+    def store_in_db(db_parent):
+        self.db_parent = db_parent
+        self.db_guid = uuid.uuid1().hex
+        cursor.execute('INSERT INTO DIE (GUID, NAME, SIZE, QTY, PARENT_GUID) VALUES (?, ?, ?, ?, ?)', (self.db_guid, self.name, self.size, self.qty, self.db_parent.db_guid))
         db.commit()
 
+    def already_in_db(db_parent, db_guid):
+        self.db_parent = db_parent
+        self.db_guid = uuid.uuid1().hex
+
     def remove_from_db(self):
-        if self.guid:
-            cursor.execute('DELETE FROM DIE WHERE GUID=:guid', {'guid':self.guid})
+        if self.db_guid:
+            cursor.execute('DELETE FROM DIE WHERE GUID=:guid', {'guid':self.db_guid})
 
     def step_down(self):
         if self.size > 4:
@@ -182,14 +184,14 @@ class Die:
 
     def update_size(self, new_size):
         self.size = new_size
-        if self.guid:
-            cursor.execute('UPDATE DIE SET SIZE=:size WHERE GUID=:guid', {'size':self.size, 'guid':self.guid})
+        if self.db_guid:
+            cursor.execute('UPDATE DIE SET SIZE=:size WHERE GUID=:guid', {'size':self.size, 'guid':self.db_guid})
             db.commit()
 
     def update_qty(self, new_qty):
         self.qty = new_qty
-        if self.guid:
-            cursor.execute('UPDATE DIE SET QTY=:qty WHERE GUID=:guid', {'qty':self.qty, 'guid':self.guid})
+        if self.db_guid:
+            cursor.execute('UPDATE DIE SET QTY=:qty WHERE GUID=:guid', {'qty':self.qty, 'guid':self.db_guid})
 
     def is_max(self):
         return self.size == 12
@@ -205,40 +207,32 @@ NamedDice: a collection of user-named single-die traits.
 Suitable for complications and assets.
 """
 class NamedDice:
-    def __init__(self, category, group, owner=None):
+    def __init__(self, category, group, db_parent, db_guid=None):
         self.dice = {}
         self.category = category
         self.group = group
-        self.owner = owner
-        self.guid = None
-
-    def fetch_from_db(self):
-        if self.group:
-            cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND GRP=:group', {'owner_guid':self.owner.guid, 'category':self.category, 'group':self.group})
+        self.db_parent = owner
+        if db_guid:
+            self.db_guid = db_guid
         else:
-            cursor.execute('SELECT * FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category AND GRP IS NULL', {'owner_guid':self.owner.guid, 'category':self.category})
-        logging.debug('going to fetch a {0}'.format(self.category))
-        row = cursor.fetchone()
-        logging.debug('row is {0}'.format(row))
-        if row:
-            self.guid = row['GUID']
-            fetched_dice = fetch_all_dice_for_owner(self)
-            logging.debug('fetched dice are {0}'.format(fetched_dice))
-            for die in fetched_dice:
-                self.dice[die.name] = die
-
-    def already_in_db(self, guid):
-        self.guid = guid
-
-    def store_in_db(self):
-        self.guid = uuid.uuid1().hex
-        cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, OWNER_GUID) VALUES (?, ?, ?, ?)', (self.guid, self.category, self.group, self.owner.guid))
-        db.commit()
+            if self.group:
+                cursor.execute('SELECT * FROM DICE_COLLECTION WHERE PARENT_GUID=:PARENT_GUID AND CATEGORY=:category AND GRP=:group', {'PARENT_GUID':self.db_parent.db_guid, 'category':self.category, 'group':self.group})
+            else:
+                cursor.execute('SELECT * FROM DICE_COLLECTION WHERE PARENT_GUID=:PARENT_GUID AND CATEGORY=:category AND GRP IS NULL', {'PARENT_GUID':self.db_parent.db_guid, 'category':self.category})
+            row = cursor.fetchone()
+            if row:
+                self.db_guid = row['GUID']
+            else:
+                self.guid = uuid.uuid1().hex
+                cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, ?, ?, ?)', (self.guid, self.category, self.group, self.db_parent.db_guid))
+                db.commit()
+        fetched_dice = fetch_all_dice_for_parent(self)
+        for die in fetched_dice:
+            self.dice[die.name] = die
 
     def remove_from_db(self):
-        if self.guid:
-            cursor.execute("DELETE FROM DICE_COLLECTION WHERE GUID=:guid", {'guid':self.guid})
-            db.commit()
+        cursor.execute("DELETE FROM DICE_COLLECTION WHERE GUID=:db_guid", {'guid':self.db_guid})
+        db.commit()
 
     def is_empty(self):
         return not self.dice
@@ -247,8 +241,7 @@ class NamedDice:
         die.owner = self
         die.name = name
         if not name in self.dice:
-            if self.guid:
-                die.store_in_db()
+            die.store_in_db(self)
             self.dice[name] = die
             return 'New: ' + self.output(name)
         elif self.dice[name].is_max():
@@ -304,25 +297,26 @@ Suitable for doom pools, crisis pools, and growth pools.
 Not necessarily persisted in the database.
 """
 class DicePool:
-    def __init__(self, roller, group, incoming_dice=[], owner=None):
+    def __init__(self, roller, group, incoming_dice=[]):
         self.roller = roller
         self.group = group
         self.dice = [None, None, None, None, None]
-        self.owner = owner
-        self.guid = None
+        self.db_parent = None
+        self.db_guid = None
         if incoming_dice:
             self.add(incoming_dice)
 
-    def already_in_db(self, guid):
-        self.guid = guid
-
     def store_in_db(self):
-        self.guid = uuid.uuid1().hex
-        cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, OWNER_GUID) VALUES (?, 'pool', ?, ?)", (self.guid, self.group, self.owner.guid))
+        self.db_guid = uuid.uuid1().hex
+        cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, 'pool', ?, ?)", (self.db_guid, self.group, self.owner.db_guid))
         db.commit()
 
+    def already_in_db(self, db_parent, db_guid):
+        self.db_parent = db_parent
+        self.db_guid = db_guid
+
     def fetch_dice_from_db(self):
-        fetched_dice = fetch_all_dice_for_owner(self)
+        fetched_dice = fetch_all_dice_for_parent(self)
         for die in fetched_dice:
             self.dice[DIE_SIZES.index(die.size)] = die
 
@@ -331,14 +325,13 @@ class DicePool:
 
     def add(self, dice):
         for die in dice:
-            die.owner = self
             index = DIE_SIZES.index(die.size)
             if self.dice[index]:
                 self.dice[index].update_qty(self.dice[index].qty + die.qty)
             else:
                 self.dice[index] = die
-                if self.guid:
-                    die.store_in_db()
+                if self.db_parent and not die.db_parent:
+                    die.store_in_db(self)
         return self.output()
 
     def remove(self, dice):
@@ -350,7 +343,7 @@ class DicePool:
                     raise CortexError(DIE_LACK_ERROR, stored_die.qty, stored_die.size)
                 stored_die.update_qty(stored_die.qty - die.qty)
                 if stored_die.qty == 0:
-                    if self.guid:
+                    if self.db_parent:
                         stored_die.remove_from_db()
                     self.dice[index] = None
             else:
@@ -381,19 +374,17 @@ class DicePool:
         return output
 
 class DicePools:
-    def __init__(self, roller, owner=None):
+    def __init__(self, roller, db_parent):
         self.roller = roller
         self.pools = {}
-        self.owner = owner
-
-    def fetch_from_db(self):
-        cursor.execute('SELECT * FROM DICE_COLLECTION WHERE CATEGORY="pool" AND OWNER_GUID=:owner_guid', {'owner_guid':self.owner.guid})
+        self.db_parent = db_parent
+        cursor.execute('SELECT * FROM DICE_COLLECTION WHERE CATEGORY="pool" AND PARENT_GUID=:PARENT_GUID', {'PARENT_GUID':self.db_parent.db_guid})
         fetching = True
         while fetching:
             row = cursor.fetchone()
             if row:
-                new_pool = DicePool(self.roller, row['GRP'], owner=self.owner)
-                new_pool.already_in_db(row['GUID'])
+                new_pool = DicePool(self.roller, row['GRP'])
+                new_pool.already_in_db(row['PARENT_GUID'], row['GUID'])
                 new_pool.fetch_dice_from_db()
                 self.pools[new_pool.group] = new_pool
             else:
@@ -404,9 +395,8 @@ class DicePools:
 
     def add(self, group, dice):
         if not group in self.pools:
-            self.pools[group] = DicePool(self.roller, group, owner=self.owner)
-            if self.owner:
-                self.pools[group].store_in_db()
+            self.pools[group] = DicePool(self.roller, group)
+            self.pools[group].store_in_db(self.db_parent)
         self.pools[group].add(dice)
         return '{0}: {1}'.format(group, self.pools[group].output())
 
@@ -428,19 +418,16 @@ class DicePools:
         return output
 
 class Resources:
-    def __init__(self, category, owner=None):
+    def __init__(self, category, db_parent):
         self.resources = {}
         self.category = category
-        self.owner = owner
-        self.guid = None
-
-    def fetch_from_db(self):
-        cursor.execute("SELECT * FROM RESOURCE WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category", {'owner_guid':self.owner.guid, 'category':self.category})
+        self.db_parent = db_parent
+        cursor.execute("SELECT * FROM RESOURCE WHERE PARENT_GUID=:PARENT_GUID AND CATEGORY=:category", {'PARENT_GUID':self.db_parent.db_guid, 'category':self.category})
         fetching = True
         while fetching:
             row = cursor.fetchone()
             if row:
-                self.resources[row['NAME']] = {'qty':row['QTY'], 'guid':row['GUID']}
+                self.resources[row['NAME']] = {'qty':row['QTY'], 'db_guid':row['GUID']}
             else:
                 fetching = False
 
@@ -449,16 +436,14 @@ class Resources:
 
     def add(self, name, qty=1):
         if not name in self.resources:
-            guid = uuid.uuid1().hex
-            self.resources[name] = {'qty':qty, 'guid':guid}
-            if self.owner:
-                cursor.execute("INSERT INTO RESOURCE (GUID, CATEGORY, NAME, QTY, OWNER_GUID) VALUES (?, ?, ?, ?, ?)", (guid, self.category, name, qty, self.owner.guid))
-                db.commit()
+            db_guid = uuid.uuid1().hex
+            self.resources[name] = {'qty':qty, 'db_guid':db_guid}
+            cursor.execute("INSERT INTO RESOURCE (GUID, CATEGORY, NAME, QTY, PARENT_GUID) VALUES (?, ?, ?, ?, ?)", (db_guid, self.category, name, qty, self.db_owner.db_guid))
+            db.commit()
         else:
             self.resources[name]['qty'] += qty
-            if self.owner:
-                cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:guid", {'qty':self.resources[name][qty], 'guid':self.resources[name][guid]})
-                db.commit()
+            cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:db_guid", {'qty':self.resources[name][qty], 'guid':self.resources[name][db_guid]})
+            db.commit()
         return self.output(name)
 
     def remove(self, name, qty=1):
@@ -467,9 +452,8 @@ class Resources:
         if self.resources[name]['qty'] < qty:
             raise CortexError(HAS_ONLY_ERROR, name, self.resources[name]['qty'], self.category)
         self.resources[name]['qty'] -= qty
-        if self.owner:
-            cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:guid", {'qty':self.resources[name]['qty'], 'guid':self.resources[name]['guid']})
-            db.commit()
+        cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:db_guid", {'qty':self.resources[name]['qty'], 'guid':self.resources[name]['db_guid']})
+        db.commit()
         return self.output(name)
 
     def output(self, name):
@@ -484,34 +468,26 @@ class Resources:
         return output
 
 class GroupedNamedDice:
-    def __init__(self, category, owner=None):
+    def __init__(self, category, db_parent):
         self.groups = {}
         self.category = category
-        self.owner = owner
-
-    def fetch_from_db(self):
-        cursor.execute("SELECT GRP FROM DICE_COLLECTION WHERE OWNER_GUID=:owner_guid AND CATEGORY=:category", {'owner_guid':self.owner.guid, 'category':self.category})
-        groups_to_fetch = []
+        self.db_parent = db_parent
+        cursor.execute("SELECT * FROM DICE_COLLECTION WHERE PARENT_GUID=:PARENT_GUID AND CATEGORY=:category", {'PARENT_GUID':self.db_parent.db_guid, 'category':self.category})
         fetching = True
         while fetching:
             row = cursor.fetchone()
             if row:
-                groups_to_fetch.append(row['GRP'])
+                new_group = NamedDice(self.category, row['GRP'], self.db_parent, db_guid=row['GUID'])
+                self.groups[row['GRP']] = new_group
             else:
                 fetching = False
-        for group_to_fetch in groups_to_fetch:
-            new_group = NamedDice(self.category, group_to_fetch, owner=self.owner)
-            new_group.fetch_from_db()
-            self.groups[group_to_fetch] = new_group
 
     def is_empty(self):
         return not self.groups
 
     def add(self, group, name, die):
         if not group in self.groups:
-            self.groups[group] = NamedDice(self.category, group, owner=self.owner)
-            if self.owner:
-                self.groups[group].store_in_db()
+            self.groups[group] = NamedDice(self.category, group, self.db_parent)
         return self.groups[group].add(name, die)
 
     def remove(self, group, name):
@@ -559,25 +535,11 @@ class CortexGame:
         else:
             self.guid = row['GUID']
 
-        self.complications = NamedDice('complication', None, owner=self)
-        logging.debug('going to fetch complications from db')
-        self.complications.fetch_from_db()
-        if not self.complications.guid:
-            self.complications.store_in_db()
-
-        self.assets = NamedDice('asset', None, owner=self)
-        self.assets.fetch_from_db()
-        if not self.assets.guid:
-            self.assets.store_in_db()
-
-        self.pools = DicePools(self.roller, owner=self)
-        self.pools.fetch_from_db()
-
-        self.plot_points = Resources('plot points', owner=self)
-        self.plot_points.fetch_from_db()
-
-        self.stress = GroupedNamedDice('stress', owner=self)
-        self.stress.fetch_from_db()
+        self.complications = NamedDice('complication', None, self)
+        self.assets = NamedDice('asset', None, self)
+        self.pools = DicePools(self.roller, self)
+        self.plot_points = Resources('plot points', self)
+        self.stress = GroupedNamedDice('stress', self)
 
     def clean(self):
         self.complications = NamedDice('complication')
