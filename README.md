@@ -53,3 +53,9 @@ In the [logging] section, the "file" attribute should hold the name of the log f
 In the [discord] section, the "token" attribute must contain your secure Discord bot token. Take whatever steps are necessary on your host machine to keep this information secret.
 
 When inviting the bot to a server, assign it the "bot" scope and the "Send Messages" and "Manage Messages" permissions.
+
+## Donate
+
+If CortexPal is useful for you, and you feel like buying me a cup of tea, you can reach me through PayPal:
+
+https://paypal.me/DonaldBisdorf
