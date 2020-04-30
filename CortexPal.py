@@ -141,7 +141,7 @@ class Die:
         self.name = name
         self.size = size
         self.qty = qty
-        self.db_parent = db_parent
+        self.db_parent = None
         self.db_guid = None
         if expression:
             if not DICE_EXPRESSION.fullmatch(expression):
@@ -154,13 +154,13 @@ class Die:
                     self.qty = int(numbers[0])
                 self.size = int(numbers[1])
 
-    def store_in_db(db_parent):
+    def store_in_db(self, db_parent):
         self.db_parent = db_parent
         self.db_guid = uuid.uuid1().hex
         cursor.execute('INSERT INTO DIE (GUID, NAME, SIZE, QTY, PARENT_GUID) VALUES (?, ?, ?, ?, ?)', (self.db_guid, self.name, self.size, self.qty, self.db_parent.db_guid))
         db.commit()
 
-    def already_in_db(db_parent, db_guid):
+    def already_in_db(self, db_parent, db_guid):
         self.db_parent = db_parent
         self.db_guid = uuid.uuid1().hex
 
@@ -211,7 +211,7 @@ class NamedDice:
         self.dice = {}
         self.category = category
         self.group = group
-        self.db_parent = owner
+        self.db_parent = db_parent
         if db_guid:
             self.db_guid = db_guid
         else:
@@ -223,8 +223,8 @@ class NamedDice:
             if row:
                 self.db_guid = row['GUID']
             else:
-                self.guid = uuid.uuid1().hex
-                cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, ?, ?, ?)', (self.guid, self.category, self.group, self.db_parent.db_guid))
+                self.db_guid = uuid.uuid1().hex
+                cursor.execute('INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, ?, ?, ?)', (self.db_guid, self.category, self.group, self.db_parent.db_guid))
                 db.commit()
         fetched_dice = fetch_all_dice_for_parent(self)
         for die in fetched_dice:
@@ -238,7 +238,6 @@ class NamedDice:
         return not self.dice
 
     def add(self, name, die):
-        die.owner = self
         die.name = name
         if not name in self.dice:
             die.store_in_db(self)
@@ -254,8 +253,7 @@ class NamedDice:
         if not name in self.dice:
             raise CortexError(NOT_EXIST_ERROR, self.category)
         output = 'Removed: ' + self.output(name)
-        if self.guid:
-            self.dice[name].remove_from_db()
+        self.dice[name].remove_from_db()
         del self.dice[name]
         return output
 
@@ -306,9 +304,10 @@ class DicePool:
         if incoming_dice:
             self.add(incoming_dice)
 
-    def store_in_db(self):
+    def store_in_db(self, db_parent):
         self.db_guid = uuid.uuid1().hex
-        cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, 'pool', ?, ?)", (self.db_guid, self.group, self.owner.db_guid))
+        self.db_parent = db_parent
+        cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, 'pool', ?, ?)", (self.db_guid, self.group, self.db_parent.db_guid))
         db.commit()
 
     def already_in_db(self, db_parent, db_guid):
@@ -438,7 +437,7 @@ class Resources:
         if not name in self.resources:
             db_guid = uuid.uuid1().hex
             self.resources[name] = {'qty':qty, 'db_guid':db_guid}
-            cursor.execute("INSERT INTO RESOURCE (GUID, CATEGORY, NAME, QTY, PARENT_GUID) VALUES (?, ?, ?, ?, ?)", (db_guid, self.category, name, qty, self.db_owner.db_guid))
+            cursor.execute("INSERT INTO RESOURCE (GUID, CATEGORY, NAME, QTY, PARENT_GUID) VALUES (?, ?, ?, ?, ?)", (db_guid, self.category, name, qty, self.db_parent.db_guid))
             db.commit()
         else:
             self.resources[name]['qty'] += qty
@@ -529,11 +528,11 @@ class CortexGame:
         cursor.execute('SELECT * FROM GAME WHERE SERVER=:server AND CHANNEL=:channel', {"server":server, "channel":channel})
         row = cursor.fetchone()
         if not row:
-            self.guid = uuid.uuid1().hex
-            cursor.execute('INSERT INTO GAME (GUID, SERVER, CHANNEL) VALUES (?, ?, ?)', (self.guid, server, channel))
+            self.db_guid = uuid.uuid1().hex
+            cursor.execute('INSERT INTO GAME (GUID, SERVER, CHANNEL) VALUES (?, ?, ?)', (self.db_guid, server, channel))
             db.commit()
         else:
-            self.guid = row['GUID']
+            self.db_guid = row['GUID']
 
         self.complications = NamedDice('complication', None, self)
         self.assets = NamedDice('asset', None, self)
