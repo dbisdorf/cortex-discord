@@ -231,8 +231,11 @@ class NamedDice:
             self.dice[die.name] = die
 
     def remove_from_db(self):
-        cursor.execute("DELETE FROM DICE_COLLECTION WHERE GUID=:db_guid", {'guid':self.db_guid})
+        for name in list(self.dice):
+            self.dice[name].remove_from_db()
+        cursor.execute("DELETE FROM DICE_COLLECTION WHERE GUID=:db_guid", {'db_guid':self.db_guid})
         db.commit()
+        self.dice = {}
 
     def is_empty(self):
         return not self.dice
@@ -322,6 +325,14 @@ class DicePool:
     def is_empty(self):
         return not self.dice
 
+    def remove_from_db(self):
+        for index in range(len(self.dice)):
+            if self.dice[index]:
+                self.dice[index].remove_from_db()
+        cursor.execute("DELETE FROM DICE_COLLECTION WHERE GUID=:db_guid", {'db_guid':self.db_guid})
+        db.commit()
+        self.dice = [None, None, None, None, None]
+
     def add(self, dice):
         for die in dice:
             index = DIE_SIZES.index(die.size)
@@ -392,6 +403,11 @@ class DicePools:
     def is_empty(self):
         return not self.pools
 
+    def remove_from_db(self):
+        for group in list(self.pools):
+            self.pools[group].remove_from_db()
+        self.pools = {}
+
     def add(self, group, dice):
         if not group in self.pools:
             self.pools[group] = DicePool(self.roller, group)
@@ -432,6 +448,11 @@ class Resources:
 
     def is_empty(self):
         return not self.resources
+
+    def remove_from_db(self):
+        cursor.executemany("DELETE FROM RESOURCE WHERE GUID=:db_guid", [{'db_guid':self.resources[resource]['db_guid']} for resource in list(self.resources)])
+        db.commit()
+        self.resources = {}
 
     def add(self, name, qty=1):
         if not name in self.resources:
@@ -484,6 +505,11 @@ class GroupedNamedDice:
     def is_empty(self):
         return not self.groups
 
+    def remove_from_db(self):
+        for group in list(self.groups):
+            self.groups[group].remove_from_db()
+        self.groups = {}
+
     def add(self, group, name, die):
         if not group in self.groups:
             self.groups[group] = NamedDice(self.category, group, self.db_parent)
@@ -533,7 +559,9 @@ class CortexGame:
             db.commit()
         else:
             self.db_guid = row['GUID']
+        self.new()
 
+    def new(self):
         self.complications = NamedDice('complication', None, self)
         self.assets = NamedDice('asset', None, self)
         self.pools = DicePools(self.roller, self)
@@ -541,11 +569,11 @@ class CortexGame:
         self.stress = GroupedNamedDice('stress', self)
 
     def clean(self):
-        self.complications = NamedDice('complication')
-        self.plot_points = Resources('plot points')
-        self.pools = DicePools(self.roller)
-        self.stress = GroupedNamedDice('stress')
-        self.assets = NamedDice('asset')
+        self.complications.remove_from_db()
+        self.assets.remove_from_db()
+        self.pools.remove_from_db()
+        self.plot_points.remove_from_db()
+        self.stress.remove_from_db()
 
     def output(self):
         output = '**Cortex Game Information**\n'
