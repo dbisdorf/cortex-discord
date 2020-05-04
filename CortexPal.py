@@ -495,15 +495,18 @@ class GroupedNamedDice:
         self.groups = {}
         self.category = category
         self.db_parent = db_parent
-        cursor.execute("SELECT * FROM DICE_COLLECTION WHERE PARENT_GUID=:PARENT_GUID AND CATEGORY=:category", {'PARENT_GUID':self.db_parent.db_guid, 'category':self.category})
+        cursor.execute("SELECT * FROM DICE_COLLECTION WHERE PARENT_GUID=:parent_guid AND CATEGORY=:category", {'parent_guid':self.db_parent.db_guid, 'category':self.category})
+        group_guids = {}
         fetching = True
         while fetching:
             row = cursor.fetchone()
             if row:
-                new_group = NamedDice(self.category, row['GRP'], self.db_parent, db_guid=row['GUID'])
-                self.groups[row['GRP']] = new_group
+                group_guids[row['GRP']] = row['GUID']
             else:
                 fetching = False
+        for group in group_guids:
+            new_group = NamedDice(self.category, group, self.db_parent, db_guid=group_guids[group])
+            self.groups[group] = new_group
 
     def is_empty(self):
         return not self.groups
@@ -674,6 +677,7 @@ class CortexPal(commands.Cog):
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         logging.error(error)
+        await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def info(self, ctx):
