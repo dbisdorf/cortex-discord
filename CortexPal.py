@@ -46,7 +46,7 @@ config.read('cortexpal.ini')
 # Set up logging.
 
 logHandler = logging.handlers.TimedRotatingFileHandler(filename=config['logging']['file'], when='D', backupCount=9)
-logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.DEBUG)
+logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.INFO)
 
 # Set up database.
 
@@ -197,6 +197,9 @@ class Die:
         return self.size == 12
 
     def output(self):
+        return str(self)
+
+    def __str__(self):
         if self.qty > 1:
             return '{0}D{1}'.format(self.qty, self.size)
         else:
@@ -462,7 +465,7 @@ class Resources:
             db.commit()
         else:
             self.resources[name]['qty'] += qty
-            cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:db_guid", {'qty':self.resources[name][qty], 'guid':self.resources[name][db_guid]})
+            cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:db_guid", {'qty':self.resources[name]['qty'], 'db_guid':self.resources[name]['db_guid']})
             db.commit()
         return self.output(name)
 
@@ -472,7 +475,7 @@ class Resources:
         if self.resources[name]['qty'] < qty:
             raise CortexError(HAS_ONLY_ERROR, name, self.resources[name]['qty'], self.category)
         self.resources[name]['qty'] -= qty
-        cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:db_guid", {'qty':self.resources[name]['qty'], 'guid':self.resources[name]['db_guid']})
+        cursor.execute("UPDATE RESOURCE SET QTY=:qty WHERE GUID=:db_guid", {'qty':self.resources[name]['qty'], 'db_guid':self.resources[name]['db_guid']})
         db.commit()
         return self.output(name)
 
@@ -809,7 +812,7 @@ class CortexPal(commands.Cog):
                 dice = separated['dice']
                 if invalid_strings:
                     raise CortexError(DIE_STRING_ERROR, invalid_strings)
-                pool = DicePool(self.roller, dice)
+                pool = DicePool(self.roller, None, incoming_dice=dice)
                 await ctx.send(pool.roll())
         except CortexError as err:
             await ctx.send(err)
