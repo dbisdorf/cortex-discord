@@ -34,6 +34,7 @@ NOT_EXIST_ERROR = 'There\'s no such {0} yet.'
 HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
+UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
 ABOUT_TEXT = 'CortexPal v0.2: a Discord bot for Cortex Prime RPG players.'
@@ -665,19 +666,13 @@ class CortexPal(commands.Cog):
             self.games.append([game_key, game_info])
         return game_info
 
-    """
-    def cog_command_error(self, ctx, error):
-        logging.error(error)
-
-    @commands.Cog.listener()
-    async def on_error(self, event, *args, **kwargs):
-        logging.error(traceback.format_exc())
-    """
-
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         logging.error(error)
-        await ctx.send(UNEXPECTED_ERROR)
+        if isinstance(error, commands.CommandNotFound):
+            await ctx.send(UNKNOWN_COMMAND_ERROR)
+        else:
+            await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def info(self, ctx):
