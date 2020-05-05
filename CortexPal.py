@@ -253,7 +253,7 @@ class NamedDice:
             return 'This would step up beyond {0}'.format(self.output(name))
         else:
             self.dice[name].combine(die)
-            return 'Raised: ' + self.output(name)
+            return 'Raised to ' + self.output(name)
 
     def remove(self, name):
         if not name in self.dice:
@@ -269,17 +269,17 @@ class NamedDice:
         if self.dice[name].is_max():
             return 'This would step up beyond {0}'.format(self.output(name))
         self.dice[name].step_up()
-        return 'Stepped up: ' + self.output(name)
+        return 'Stepped up to ' + self.output(name)
 
     def step_down(self, name):
         if not name in self.dice:
             raise CortexError(NOT_EXIST_ERROR, self.category)
-        if self.dice[name].qty == 4:
+        if self.dice[name].size == 4:
             self.remove(name)
             return 'Stepped down and removed: ' + name
         else:
             self.dice[name].step_down()
-            return 'Stepped down: ' + self.output(name)
+            return 'Stepped down to ' + self.output(name)
 
     def get_all_names(self):
         return list(self.dice)
