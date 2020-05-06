@@ -47,7 +47,7 @@ config.read('cortexpal.ini')
 # Set up logging.
 
 logHandler = logging.handlers.TimedRotatingFileHandler(filename=config['logging']['file'], when='D', backupCount=9)
-logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.INFO)
+logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.DEBUG)
 
 # Set up database.
 
@@ -177,13 +177,14 @@ class Die:
         """Inform the Die that it is already in the database, under a given parent and guid."""
 
         self.db_parent = db_parent
-        self.db_guid = uuid.uuid1().hex
+        self.db_guid = db_guid
 
     def remove_from_db(self):
         """Remove this Die from the database."""
 
         if self.db_guid:
             cursor.execute('DELETE FROM DIE WHERE GUID=:guid', {'guid':self.db_guid})
+            db.commit()
 
     def step_down(self):
         """Step down the die size."""
@@ -651,7 +652,7 @@ class GroupedNamedDice:
 
     def output_all(self):
         """Return a formatted summary of all dice under all groups."""
-        
+
         output = ''
         prefix = ''
         for group in list(self.groups):
