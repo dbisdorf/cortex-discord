@@ -362,6 +362,7 @@ class DicePool:
 
         self.db_guid = uuid.uuid1().hex
         self.db_parent = db_parent
+        logging.debug('going to store DicePool guid {0} grp {1} parent {2}'.format(self.db_guid, self.group, self.db_parent.db_guid))
         cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, 'pool', ?, ?)", (self.db_guid, self.group, self.db_parent.db_guid))
         db.commit()
 
@@ -459,16 +460,19 @@ class DicePools:
         self.pools = {}
         self.db_parent = db_parent
         cursor.execute('SELECT * FROM DICE_COLLECTION WHERE CATEGORY="pool" AND PARENT_GUID=:PARENT_GUID', {'PARENT_GUID':self.db_parent.db_guid})
+        pool_info = []
         fetching = True
         while fetching:
             row = cursor.fetchone()
             if row:
-                new_pool = DicePool(self.roller, row['GRP'])
-                new_pool.already_in_db(row['PARENT_GUID'], row['GUID'])
-                new_pool.fetch_dice_from_db()
-                self.pools[new_pool.group] = new_pool
+                pool_info.append({'db_guid':row['GUID'], 'grp':row['GRP'], 'parent_guid':row['PARENT_GUID']})
             else:
                 fetching = False
+        for fetched_pool in pool_info:
+            new_pool = DicePool(self.roller, fetched_pool['grp'])
+            new_pool.already_in_db(fetched_pool['parent_guid'], fetched_pool['db_guid'])
+            new_pool.fetch_dice_from_db()
+            self.pools[new_pool.group] = new_pool
 
     def is_empty(self):
         """Identify whether we have any pools."""
