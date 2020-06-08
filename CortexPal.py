@@ -689,6 +689,7 @@ class CortexGame:
         self.pools = DicePools(self.roller, self)
         self.plot_points = Resources('plot points', self)
         self.stress = GroupedNamedDice('stress', self)
+        self.xp = Resources('xp', self)
 
     def clean(self):
         """Resets and erases the game's traits."""
@@ -698,6 +699,7 @@ class CortexGame:
         self.pools.remove_from_db()
         self.plot_points.remove_from_db()
         self.stress.remove_from_db()
+        self.xp.remove_from_db()
 
     def output(self):
         """Return a report of all of the game's traits."""
@@ -722,6 +724,10 @@ class CortexGame:
         if not self.pools.is_empty():
             output += '\n**Dice Pools**\n'
             output += self.pools.output()
+            output += '\n'
+        if not self.xp.is_empty():
+            output += '\n**Experience Points**\n'
+            output += self.xp.output_all()
             output += '\n'
         return output
 
@@ -1096,6 +1102,47 @@ class CortexPal(commands.Cog):
                     update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$asset')
+                if update_pin and game.pinned_message:
+                    await game.pinned_message.edit(content=game.output())
+                await ctx.send(output)
+        except CortexError as err:
+            await ctx.send(err)
+        except:
+            logging.error(traceback.format_exc())
+            await ctx.send(UNEXPECTED_ERROR)
+
+    @commands.command()
+    async def xp(self, ctx, *args):
+        """
+        Award experience points.
+
+        For example:
+        $xp add alice 3 (gives Alice 3 experience points)
+        $xp remove alice (spends one of Alice's experience points)
+        """
+
+        logging.info("xp command invoked")
+        self.update_command_time()
+        try:
+            if not args:
+                await ctx.send_help("xp")
+            else:
+                output = ''
+                update_pin = False
+                game = self.get_game_info(ctx)
+                separated = separate_numbers_and_name(args[1:])
+                name = separated['name']
+                qty = 1
+                if separated['numbers']:
+                    qty = separated['numbers'][0]
+                if args[0] in ADD_SYNONYMS:
+                    output = 'Experience points for ' + game.xp.add(name, qty)
+                    update_pin = True
+                elif args[0] in REMOVE_SYNOYMS:
+                    output = 'Experience points for ' + game.xp.remove(name, qty)
+                    update_pin = True
+                else:
+                    raise CortexError(INSTRUCTION_ERROR, args[0], '$xp')
                 if update_pin and game.pinned_message:
                     await game.pinned_message.edit(content=game.output())
                 await ctx.send(output)
