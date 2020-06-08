@@ -37,7 +37,7 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v0.2: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v0.3: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -944,12 +944,16 @@ class CortexPal(commands.Cog):
                 await ctx.send_help("roll")
             else:
                 separated = separate_dice_and_name(args)
-                invalid_strings = separated['name']
+                ignored_strings = separated['name']
                 dice = separated['dice']
-                if invalid_strings:
-                    raise CortexError(DIE_STRING_ERROR, invalid_strings)
+                """
+                ignored_line = ''
+                if ignored_strings:
+                    ignored_line = '\n*Ignored: {0}*'.format(ignored_strings)
+                """
                 pool = DicePool(self.roller, None, incoming_dice=dice)
-                await ctx.send(pool.roll())
+                echo_line = 'Rolling: {0}\n'.format(pool.output())
+                await ctx.send(echo_line + pool.roll())
         except CortexError as err:
             await ctx.send(err)
         except:
