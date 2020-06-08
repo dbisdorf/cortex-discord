@@ -934,6 +934,11 @@ class CortexPal(commands.Cog):
         For example:
         $roll 12 (rolls a D12)
         $roll 4 3d8 10 10 (rolls a D4, 3D8, and 2D10)
+
+        You may include your trait names. The command will ignore any words that don't look like dice.
+
+        For example:
+        $roll D6 Mind D10 Navigation D6 Pirate (rolls 2D6 and a D10, ignoring the trait names)
         """
 
         logging.info("roll command invoked")
