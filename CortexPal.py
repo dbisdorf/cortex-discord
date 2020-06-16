@@ -37,7 +37,7 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v0.3: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v0.4: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -60,6 +60,14 @@ cursor.execute(
 '(GUID VARCHAR(32) PRIMARY KEY,'
 'SERVER INT NOT NULL,'
 'CHANNEL INT NOT NULL)'
+)
+
+cursor.execute(
+'CREATE TABLE IF NOT EXISTS GAME_OPTIONS'
+'(GUID VARCHAR(32) PRIMARY KEY,'
+'KEY VARCHAR(16) NOT NULL,'
+'VALUE VARCHAR(256),'
+'PARENT_GUID VARCHAR(32) NOT NULL)'
 )
 
 cursor.execute(
@@ -88,11 +96,6 @@ cursor.execute(
 'PARENT_GUID VARCHAR(64) NOT NULL)'
 )
 
-# Set up bot.
-
-TOKEN = config['discord']['token']
-bot = commands.Bot(command_prefix='$', description=ABOUT_TEXT)
-
 # Classes and functions follow.
 
 class CortexError(Exception):
@@ -104,6 +107,13 @@ class CortexError(Exception):
 
     def __str__(self):
         return self.message.format(*(self.args))
+
+def get_prefix(bot, message):
+    game_info = CortexGame(None, message.guild.id, message.channel.id)
+    prefix = game_info.get_option('prefix')
+    if not prefix:
+        prefix = '$'
+    return prefix
 
 def separate_dice_and_name(inputs):
     """Sort the words of an input string, and identify which are dice notations and which are not."""
@@ -731,6 +741,23 @@ class CortexGame:
             output += '\n'
         return output
 
+    def get_option(self, key):
+        value = None
+        cursor.execute('SELECT * FROM GAME_OPTIONS WHERE PARENT_GUID=:game_guid AND KEY=:key', {'game_guid':self.db_guid, 'key':key})
+        row = cursor.fetchone()
+        if row:
+            value = row['VALUE']
+        return value
+
+    def set_option(self, key, value):
+        prior = self.get_option(key)
+        if not prior:
+            new_guid = uuid.uuid1().hex
+            cursor.execute('INSERT INTO GAME_OPTIONS (GUID, KEY, VALUE, PARENT_GUID) VALUES (?, ?, ?, ?)', (new_guid, key, value, self.db_guid))
+        else:
+            cursor.execute('UPDATE GAME_OPTIONS SET VALUE=:value where KEY=:key and PARENT_GUID=:game_guid', {'value':value, 'key':key, 'game_guid':self.db_guid})
+        db.commit()
+
 class Roller:
     """Generates random die rolls and remembers the frequency of results."""
 
@@ -1202,6 +1229,29 @@ class CortexPal(commands.Cog):
         output += self.roller.output()
         await ctx.send(output)
 
+    @commands.command()
+    async def option(self, ctx, *args):
+        """
+        Change the bot's optional behavior.
+
+        For example:
+        $option prefix ! (change the command prefix to ! instead of $)
+        """
+        game = self.get_game_info(ctx)
+        output = 'No such option.'
+
+        if args[0] == 'prefix':
+            if len(args[1]) > 1:
+                output = 'Prefix must be a single character.'
+            else:
+                game.set_option('prefix', args[1])
+                output = 'Prefix set to {0}'.format(args[1])
+        await ctx.send(output)
+
+# Set up bot.
+
+TOKEN = config['discord']['token']
+bot = commands.Bot(command_prefix=get_prefix, description=ABOUT_TEXT)
 
 # Start the bot.
 
