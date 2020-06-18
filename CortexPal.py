@@ -9,6 +9,7 @@ import configparser
 import datetime
 import uuid
 import sqlite3
+import copy
 from discord.ext import commands
 from datetime import datetime
 
@@ -37,7 +38,7 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v0.4: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v1.0: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -389,6 +390,12 @@ class DicePool:
         for die in fetched_dice:
             self.dice[DIE_SIZES.index(die.size)] = die
 
+    def disconnect_from_db(self):
+        """Prevent further changes to this pool from affecting the database."""
+
+        self.db_parent = None
+        self.db_guid = None
+
     def is_empty(self):
         """Identify whether this pool is empty."""
 
@@ -512,6 +519,15 @@ class DicePools:
             raise CortexError(NOT_EXIST_ERROR, 'pool')
         self.pools[group].remove(dice)
         return '{0}: {1}'.format(group, self.pools[group].output())
+
+    def temporary_copy(self, group):
+        """Return an independent, non-persistent copy of a pool."""
+
+        if not group in self.pools:
+            raise CortexError(NOT_EXIST_ERROR, 'pool')
+        temp_copy = copy.deepcopy(self.pools[group])
+        temp_copy.disconnect_from_db()
+        return temp_copy
 
     def roll(self, group):
         """Roll all the dice in a certain pool and return the results."""
@@ -1001,6 +1017,7 @@ class CortexPal(commands.Cog):
         $pool add doom 6 2d8 (gives the Doom pool a D6 and 2D8)
         $pool remove doom 10 (spends a D10 from the Doom pool)
         $pool roll doom (rolls the Doom pool)
+        $pool roll doom 2d6 10 (rolls the Doom pool and adds 2D6 and a D10)
         """
 
         logging.info("pool command invoked")
@@ -1022,7 +1039,9 @@ class CortexPal(commands.Cog):
                     output = game.pools.remove(name, dice)
                     update_pin = True
                 elif args[0] == 'roll':
-                    output = game.pools.roll(name)
+                    temp_pool = game.pools.temporary_copy(name)
+                    temp_pool.add(dice)
+                    output = temp_pool.roll()
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$pool')
                 if update_pin and game.pinned_message:
