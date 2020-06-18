@@ -24,6 +24,7 @@ ADD_SYNONYMS = ['add', 'give', 'new', 'create']
 REMOVE_SYNOYMS = ['remove', 'spend', 'delete', 'subtract']
 UP_SYNONYMS = ['stepup', 'up']
 DOWN_SYNONYMS = ['stepdown', 'down']
+CLEAR_SYNONYMS = ['clear', 'erase']
 
 DIE_FACE_ERROR = '{0} is not a valid die size. You may only use dice with sizes of 4, 6, 8, 10, or 12.'
 DIE_STRING_ERROR = '{0} is not a valid die or dice.'
@@ -598,6 +599,15 @@ class Resources:
         db.commit()
         return self.output(name)
 
+    def clear(self, name):
+        """Remove a name from the catalog entirely."""
+        if not name in self.resources:
+            raise CortexError(HAS_NONE_ERROR, name, self.category)
+        cursor.execute("DELETE FROM RESOURCE WHERE GUID=:db_guid", {'db_guid':self.resources[name]['db_guid']})
+        db.commit()
+        del self.resources[name]
+        return 'Cleared {0} from {1} list.'.format(name, self.category)
+
     def output(self, name):
         """Return a formatted description of the resources held by a given name."""
 
@@ -936,6 +946,7 @@ class CortexPal(commands.Cog):
         For example:
         $pp add alice 3 (gives Alice 3 plot points)
         $pp remove alice (spends one of Alice's plot points)
+        $pp clear alice (remove Alice from plot point listings)
         """
 
         logging.info("pp command invoked")
@@ -957,6 +968,9 @@ class CortexPal(commands.Cog):
                     update_pin = True
                 elif args[0] in REMOVE_SYNOYMS:
                     output = 'Plot points for ' + game.plot_points.remove(name, qty)
+                    update_pin = True
+                elif args[0] in CLEAR_SYNONYMS:
+                    output = game.plot_points.clear(name)
                     update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$pp')
