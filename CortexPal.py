@@ -677,6 +677,15 @@ class GroupedNamedDice:
             raise CortexError(HAS_NONE_ERROR, group, self.category)
         return self.groups[group].remove(name)
 
+    def clear(self, group):
+        """Remove all dice from a given group."""
+
+        if not group in self.groups:
+            raise CortexError(HAS_NONE_ERROR, group, self.category)
+        self.groups[group].remove_from_db()
+        del self.groups[group]
+        return 'Cleared all {0} for {1}.'.format(self.category, group)
+
     def step_up(self, group, name):
         """Step up the die with a given name, within a given group."""
 
@@ -954,7 +963,7 @@ class CortexPal(commands.Cog):
         For example:
         $pp add alice 3 (gives Alice 3 plot points)
         $pp remove alice (spends one of Alice's plot points)
-        $pp clear alice (remove Alice from plot point listings)
+        $pp clear alice (clears Alice from plot point lists)
         """
 
         logging.info("pp command invoked")
@@ -1090,6 +1099,7 @@ class CortexPal(commands.Cog):
         $stress stepup cat social (steps up Cat's Social stress)
         $stress stepdown doe physical (steps down Doe's Physical stress)
         $stress remove eve psychic (removes Eve's Psychic stress)
+        $stress clear fin (clears all of Fin's stress)
         """
 
         logging.info("stress command invoked")
@@ -1126,6 +1136,9 @@ class CortexPal(commands.Cog):
                     update_pin = True
                 elif args[0] in DOWN_SYNONYMS:
                     output = '{0} Stress for {1}'.format(game.stress.step_down(owner_name, stress_name), owner_name)
+                    update_pin = True
+                elif args[0] in CLEAR_SYNONYMS:
+                    output = game.stress.clear(owner_name)
                     update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$stress')
@@ -1200,6 +1213,7 @@ class CortexPal(commands.Cog):
         For example:
         $xp add alice 3 (gives Alice 3 experience points)
         $xp remove alice (spends one of Alice's experience points)
+        $xp clear alice (clears Alice from experience point lists)
         """
 
         logging.info("xp command invoked")
