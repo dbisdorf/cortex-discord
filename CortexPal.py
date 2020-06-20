@@ -521,6 +521,14 @@ class DicePools:
         self.pools[group].remove(dice)
         return '{0}: {1}'.format(group, self.pools[group].output())
 
+    def clear(self, group):
+        """Remove one entire pool."""
+        if not group in self.pools:
+            raise CortexError(NOT_EXIST_ERROR, 'pool')
+        self.pools[group].remove_from_db()
+        del self.pools[group]
+        return 'Cleared {0} pool.'.format(group)
+
     def temporary_copy(self, group):
         """Return an independent, non-persistent copy of a pool."""
 
@@ -1032,6 +1040,7 @@ class CortexPal(commands.Cog):
         $pool remove doom 10 (spends a D10 from the Doom pool)
         $pool roll doom (rolls the Doom pool)
         $pool roll doom 2d6 10 (rolls the Doom pool and adds 2D6 and a D10)
+        $pool clear doom (clears the entire Doom pool)
         """
 
         logging.info("pool command invoked")
@@ -1051,6 +1060,9 @@ class CortexPal(commands.Cog):
                     update_pin = True
                 elif args[0] in REMOVE_SYNOYMS:
                     output = game.pools.remove(name, dice)
+                    update_pin = True
+                elif args[0] in CLEAR_SYNONYMS:
+                    output = game.pools.clear(name)
                     update_pin = True
                 elif args[0] == 'roll':
                     temp_pool = game.pools.temporary_copy(name)
