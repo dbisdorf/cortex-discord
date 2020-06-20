@@ -1222,6 +1222,9 @@ class CortexPal(commands.Cog):
                 elif args[0] in REMOVE_SYNOYMS:
                     output = 'Experience points for ' + game.xp.remove(name, qty)
                     update_pin = True
+                elif args[0] in CLEAR_SYNONYMS:
+                    output = game.xp.clear(name)
+                    update_pin = True
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$xp')
                 if update_pin and game.pinned_message:
