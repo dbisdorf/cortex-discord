@@ -4,4 +4,5 @@
 *.ini
 *.db
 *.db-journal
+*.exe
 TODO.md

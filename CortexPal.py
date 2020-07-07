@@ -39,7 +39,7 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v1.0: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v1.01: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -61,7 +61,8 @@ cursor.execute(
 'CREATE TABLE IF NOT EXISTS GAME'
 '(GUID VARCHAR(32) PRIMARY KEY,'
 'SERVER INT NOT NULL,'
-'CHANNEL INT NOT NULL)'
+'CHANNEL INT NOT NULL,'
+'ACTIVITY DATETIME NOT NULL)'
 )
 
 cursor.execute(
@@ -728,7 +729,7 @@ class CortexGame:
         row = cursor.fetchone()
         if not row:
             self.db_guid = uuid.uuid1().hex
-            cursor.execute('INSERT INTO GAME (GUID, SERVER, CHANNEL) VALUES (?, ?, ?)', (self.db_guid, server, channel))
+            cursor.execute('INSERT INTO GAME (GUID, SERVER, CHANNEL, ACTIVITY) VALUES (?, ?, ?, ?)', (self.db_guid, server, channel, datetime.utcnow()))
             db.commit()
         else:
             self.db_guid = row['GUID']
@@ -799,6 +800,10 @@ class CortexGame:
             cursor.execute('INSERT INTO GAME_OPTIONS (GUID, KEY, VALUE, PARENT_GUID) VALUES (?, ?, ?, ?)', (new_guid, key, value, self.db_guid))
         else:
             cursor.execute('UPDATE GAME_OPTIONS SET VALUE=:value where KEY=:key and PARENT_GUID=:game_guid', {'value':value, 'key':key, 'game_guid':self.db_guid})
+        db.commit()
+
+    def update_activity(self):
+        cursor.execute('UPDATE GAME SET ACTIVITY=:now WHERE GUID=:db_guid', {'now':datetime.utcnow(), 'db_guid':self.db_guid})
         db.commit()
 
 class Roller:
@@ -887,6 +892,7 @@ class CortexPal(commands.Cog):
 
         self.update_command_time()
         game = self.get_game_info(ctx)
+        game.update_activity()
         await ctx.send(game.output())
 
     @commands.command()
@@ -899,6 +905,7 @@ class CortexPal(commands.Cog):
             if pin.author == self.bot.user:
                 await pin.unpin()
         game = self.get_game_info(ctx)
+        game.update_activity()
         game.pinned_message = await ctx.send(game.output())
         await game.pinned_message.pin()
 
@@ -922,6 +929,7 @@ class CortexPal(commands.Cog):
             else:
                 output = ''
                 game = self.get_game_info(ctx)
+                game.update_activity()
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 name = separated['name']
@@ -975,6 +983,7 @@ class CortexPal(commands.Cog):
                 output = ''
                 update_pin = False
                 game = self.get_game_info(ctx)
+                game.update_activity()
                 separated = separate_numbers_and_name(args[1:])
                 name = separated['name']
                 qty = 1
@@ -1061,6 +1070,7 @@ class CortexPal(commands.Cog):
                 output = ''
                 update_pin = False
                 game = self.get_game_info(ctx)
+                game.update_activity()
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 name = separated['name']
@@ -1111,6 +1121,7 @@ class CortexPal(commands.Cog):
                 output = ''
                 update_pin = False
                 game = self.get_game_info(ctx)
+                game.update_activity()
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 split_name = separated['name'].split(' ', maxsplit=1)
@@ -1172,6 +1183,7 @@ class CortexPal(commands.Cog):
             else:
                 output = ''
                 game = self.get_game_info(ctx)
+                game.update_activity()
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 name = separated['name']
@@ -1225,6 +1237,7 @@ class CortexPal(commands.Cog):
                 output = ''
                 update_pin = False
                 game = self.get_game_info(ctx)
+                game.update_activity()
                 separated = separate_numbers_and_name(args[1:])
                 name = separated['name']
                 qty = 1
@@ -1260,6 +1273,7 @@ class CortexPal(commands.Cog):
         self.update_command_time()
         try:
             game = self.get_game_info(ctx)
+            game.update_activity()
             game.clean()
             if game.pinned_message:
                 await game.pinned_message.edit(content=game.output())
@@ -1300,6 +1314,7 @@ class CortexPal(commands.Cog):
         $option prefix ! (change the command prefix to ! instead of $)
         """
         game = self.get_game_info(ctx)
+        game.update_activity()
         output = 'No such option.'
 
         if args[0] == 'prefix':
