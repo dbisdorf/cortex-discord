@@ -1325,13 +1325,22 @@ class CortexPal(commands.Cog):
         game.update_activity()
         output = 'No such option.'
 
-        if args[0] == 'prefix':
-            if len(args[1]) > 1:
-                output = 'Prefix must be a single character.'
+        try:
+            if not args:
+                await ctx.send_help("option")
             else:
-                game.set_option('prefix', args[1])
-                output = 'Prefix set to {0}'.format(args[1])
-        await ctx.send(output)
+                if args[0] == 'prefix':
+                    if len(args[1]) > 1:
+                        output = 'Prefix must be a single character.'
+                    else:
+                        game.set_option('prefix', args[1])
+                        output = 'Prefix set to {0}'.format(args[1])
+                await ctx.send(output)
+        except CortexError as err:
+            await ctx.send(err)
+        except:
+            logging.error(traceback.format_exc())
+            await ctx.send(UNEXPECTED_ERROR)
 
 # Set up bot.
 
