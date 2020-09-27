@@ -444,6 +444,16 @@ class DicePool:
                 raise CortexError(DIE_NONE_ERROR, die.size)
         return self.output()
 
+    def temporary_copy(self):
+        """Return a temporary, non-persisted copy of this dice pool."""
+        copy = DicePool(self.roller, self.group)
+        dice_copies = []
+        for die in self.dice:
+            if die:
+                dice_copies.append(Die(size=die.size, qty=die.qty))
+        copy.add(dice_copies)
+        return copy
+
     def roll(self):
         """Roll all the dice in the pool, and return a formatted summary of the results."""
 
@@ -535,9 +545,7 @@ class DicePools:
 
         if not group in self.pools:
             raise CortexError(NOT_EXIST_ERROR, 'pool')
-        temp_copy = copy.deepcopy(self.pools[group])
-        temp_copy.disconnect_from_db()
-        return temp_copy
+        return self.pools[group].temporary_copy()
 
     def roll(self, group):
         """Roll all the dice in a certain pool and return the results."""
