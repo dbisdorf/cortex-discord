@@ -39,7 +39,7 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v1.01: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v1.02: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
