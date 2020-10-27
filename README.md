@@ -3,19 +3,13 @@ A Discord bot to assist Cortex Prime RPG players.
 
 This bot uses the discord.py library (https://pypi.org/project/discord.py/).
 
-Note that this bot is still in early development. You may encounter bugs or gaps in functionality. Feel free to contact me with any bug reports, or, if you prefer, you can file them here.
+Feel free to contact me with any bug reports, or, if you prefer, you can file them here.
 
 ## Inviting
 
 As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by browsing to this URL: https://discordapp.com/api/oauth2/authorize?client_id=694239819454480445&permissions=10240&scope=bot
 
-The bot only requires permission to send and manage messages.
-
-A few warnings about the public bot:
-
-- I can't guarantee that it will be up 100% of the time. **Bugs or other issues may cause the bot to go down unexpectedly** and to stay down for an indeterminate duration.
-- Because it's in early development, **the behavior of the bot may change often.** I might add or remove commands, or change the syntax of commands. Unfortunately, you probably won't know a change has occurred until you try something that worked yesterday and find that it doesn't work today.
-- Even when it's running and I'm not touching it, **it might not work right.** Testing and usage will eventually help me eliminate bugs I haven't found yet, but I might not have quick solutions for those bugs.
+The bot only requires permission to send and manage messages. It's been reasonably stable so far, but I can't guarantee that it will be up 100% of the time. Bugs or other issues may cause the bot to go down unexpectedly and to stay down for an indeterminate duration.
 
 ## Usage
 
@@ -43,6 +37,10 @@ The bot recognizes synonyms for some instructions, which you may find more succi
 - Instead of **remove**, you may use **spend**, **delete**, or **subtract'**.
 - Instead of **stepup**, you may use **up**.
 - Instead of **stepdown**, you may use **down**.
+
+## Abandoned Games
+
+The bot will delete game information that no one has updated in 180 days. This purge occurs on a channel-by-channel basis. In other words, if you are running a game in a channel on your server, and you don't execute any game commands in that channel for 180 days, the bot will delete all game information from that channel.
 
 ## Hosting
 
