@@ -11,9 +11,11 @@ import uuid
 import sqlite3
 import copy
 from discord.ext import commands
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 PREFIX = '$'
+
+PURGE_DAYS = 180
 
 DICE_EXPRESSION = re.compile('(\d*(d|D))?(4|6|8|10|12)')
 DIE_SIZES = [4, 6, 8, 10, 12]
@@ -39,7 +41,7 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v1.02: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v1.1: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -157,6 +159,40 @@ def fetch_all_dice_for_parent(db_parent):
         else:
             fetching = False
     return dice
+
+def purge():
+    """Scan for old unused games and remove them."""
+
+    logging.debug('Running the purge')
+    purge_time = datetime.now(timezone.utc) - timedelta(days=PURGE_DAYS)
+    games_to_purge = []
+    cursor.execute('SELECT * FROM GAME WHERE ACTIVITY<:purge_time', {'purge_time':purge_time})
+    fetching = True
+    while fetching:
+        row = cursor.fetchone()
+        if row:
+            games_to_purge.append(row['GUID'])
+        else:
+            fetching = False
+    for game_guid in games_to_purge:
+        cursor.execute('DELETE FROM GAME_OPTIONS WHERE PARENT_GUID=:guid', {'guid':game_guid})
+        cursor.execute('SELECT * FROM DICE_COLLECTION WHERE PARENT_GUID=:guid', {'guid':game_guid})
+        collections = []
+        fetching = True
+        while fetching:
+            row = cursor.fetchone()
+            if row:
+                collections.append(row['GUID'])
+            else:
+                fetching = False
+        for collection_guid in collections:
+            cursor.execute('DELETE FROM DIE WHERE PARENT_GUID=:guid', {'guid':collection_guid})
+        cursor.execute('DELETE FROM DIE WHERE PARENT_GUID=:guid', {'guid':game_guid})
+        cursor.execute('DELETE FROM DICE_COLLECTION WHERE PARENT_GUID=:guid', {'guid':game_guid})
+        cursor.execute('DELETE FROM RESOURCE WHERE PARENT_GUID=:guid', {'guid':game_guid})
+        cursor.execute('DELETE FROM GAME WHERE GUID=:guid', {'guid':game_guid})
+        db.commit()
+    logging.debug('Deleted %d games', len(games_to_purge))
 
 class Die:
     """A single die, or a set of dice of the same size."""
@@ -737,7 +773,7 @@ class CortexGame:
         row = cursor.fetchone()
         if not row:
             self.db_guid = uuid.uuid1().hex
-            cursor.execute('INSERT INTO GAME (GUID, SERVER, CHANNEL, ACTIVITY) VALUES (?, ?, ?, ?)', (self.db_guid, server, channel, datetime.utcnow()))
+            cursor.execute('INSERT INTO GAME (GUID, SERVER, CHANNEL, ACTIVITY) VALUES (?, ?, ?, ?)', (self.db_guid, server, channel, datetime.now(timezone.utc)))
             db.commit()
         else:
             self.db_guid = row['GUID']
@@ -811,7 +847,7 @@ class CortexGame:
         db.commit()
 
     def update_activity(self):
-        cursor.execute('UPDATE GAME SET ACTIVITY=:now WHERE GUID=:db_guid', {'now':datetime.utcnow(), 'db_guid':self.db_guid})
+        cursor.execute('UPDATE GAME SET ACTIVITY=:now WHERE GUID=:db_guid', {'now':datetime.now(timezone.utc), 'db_guid':self.db_guid})
         db.commit()
 
 class Roller:
@@ -862,16 +898,12 @@ class CortexPal(commands.Cog):
     """This cog encapsulates the commands and state of the bot."""
 
     def __init__(self, bot):
-        """Initialize."""
+        """Initialize."""        
         self.bot = bot
         self.games = []
-        self.startup_time = datetime.utcnow()
+        self.startup_time = datetime.now(timezone.utc)
         self.last_command_time = None
         self.roller = Roller()
-
-    def update_command_time(self):
-        """Update the 'most recent user command' timestamp."""
-        self.last_command_time = datetime.utcnow()
 
     def get_game_info(self, context):
         """Match a server and channel to a Cortex game."""
@@ -894,11 +926,27 @@ class CortexPal(commands.Cog):
         else:
             await ctx.send(UNEXPECTED_ERROR)
 
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx):
+        """After every command, determine whether we want to run a purge."""
+        run_purge = False
+        now = datetime.now(timezone.utc)
+        if self.last_command_time:
+            # Run purge after midnight
+            if now.day != self.last_command_time.day:
+                run_purge = True
+        else:
+            # Run purge on first command after startup
+            run_purge = True
+        if run_purge:
+            purge()
+            self.games = []
+        self.last_command_time = now
+
     @commands.command()
     async def info(self, ctx):
         """Display all game information."""
 
-        self.update_command_time()
         game = self.get_game_info(ctx)
         game.update_activity()
         await ctx.send(game.output())
@@ -907,7 +955,6 @@ class CortexPal(commands.Cog):
     async def pin(self, ctx):
         """Pin a message to the channel to hold game information."""
 
-        self.update_command_time()
         pins = await ctx.channel.pins()
         for pin in pins:
             if pin.author == self.bot.user:
@@ -930,7 +977,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("comp command invoked")
-        self.update_command_time()
         try:
             if not args:
                 await ctx.send_help("comp")
@@ -983,7 +1029,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("pp command invoked")
-        self.update_command_time()
         try:
             if not args:
                 await ctx.send_help("pp")
@@ -1033,7 +1078,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("roll command invoked")
-        self.update_command_time()
         results = {}
         try:
             if not args:
@@ -1070,7 +1114,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("pool command invoked")
-        self.update_command_time()
         try:
             if not args:
                 await ctx.send_help("pool")
@@ -1121,7 +1164,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("stress command invoked")
-        self.update_command_time()
         try:
             if not args:
                 await ctx.send_help("stress")
@@ -1183,7 +1225,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("asset command invoked")
-        self.update_command_time()
         output = ''
         try:
             if not args:
@@ -1237,7 +1278,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("xp command invoked")
-        self.update_command_time()
         try:
             if not args:
                 await ctx.send_help("xp")
@@ -1278,7 +1318,6 @@ class CortexPal(commands.Cog):
         """
 
         logging.info("clean command invoked")
-        self.update_command_time()
         try:
             game = self.get_game_info(ctx)
             game.update_activity()
