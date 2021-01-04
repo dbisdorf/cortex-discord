@@ -495,15 +495,35 @@ class DicePool:
 
         output = ''
         separator = ''
+        results = [[],[]]
         for die in self.dice:
             if die:
                 output += '{0}D{1} : '.format(separator, die.size)
-                for num in range(die.qty):
-                    roll = str(self.roller.roll(die.size))
-                    if roll == '1':
-                        roll = '**(1)**'
-                    output += roll + ' '
+                for num in range(die.qty)
+                    roll = self.roller.roll(die.size)
+                    results[0].append(die.size)
+                    results[1].append(roll)
+                    roll_str = str(roll)
+                    if roll_str == '1':
+                        roll_str = '**(1)**'
+                    output += roll_str + ' '
                 separator = '\n'
+                if sum(results[1]) == len(results[1])
+                    output += '{0}Best Total : N/A - Botch'.format(separator)
+                else
+                    highest = max(results[1])
+                    highest_removed = results[1].remove(index(highest))
+                    if max(highest_removed) == 1
+                        second_highest = 0
+                        effect = 'D4'
+                    elif max(highest_removed) != 1 and max(highest_removed.remove(index(max(highest_removed)))) == 1
+                        second_highest = max(highest_removed)
+                        effect = 'D4'
+                    else
+                        second_highest = max(highest_removed)
+                        effect = 'D' + str(max(results[0].remove(index(highest).remove(index(second_highest)))))
+                    highest_total = str(highest + second_highest)
+                    output += '{0}Best Total : {1} Effect: {2}'.format(separator, highest_total, effect)
         return output
 
     def output(self):
@@ -898,7 +918,7 @@ class CortexPal(commands.Cog):
     """This cog encapsulates the commands and state of the bot."""
 
     def __init__(self, bot):
-        """Initialize."""        
+        """Initialize."""
         self.bot = bot
         self.games = []
         self.startup_time = datetime.now(timezone.utc)
