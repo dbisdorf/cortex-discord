@@ -41,7 +41,10 @@ INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
-ABOUT_TEXT = 'CortexPal v1.1: a Discord bot for Cortex Prime RPG players.'
+PREFIX_OPTION = 'prefix'
+BEST_OPTION = 'best'
+
+ABOUT_TEXT = 'CortexPal v1.2: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -115,7 +118,7 @@ class CortexError(Exception):
 
 def get_prefix(bot, message):
     game_info = CortexGame(None, message.guild.id, message.channel.id)
-    prefix = game_info.get_option('prefix')
+    prefix = game_info.get_option(PREFIX_OPTION)
     if not prefix:
         prefix = '$'
     return prefix
@@ -490,20 +493,56 @@ class DicePool:
         copy.add(dice_copies)
         return copy
 
-    def roll(self):
+    def roll(self, suggest_best=False):
         """Roll all the dice in the pool, and return a formatted summary of the results."""
 
         output = ''
         separator = ''
+        rolls = []
         for die in self.dice:
             if die:
                 output += '{0}D{1} : '.format(separator, die.size)
                 for num in range(die.qty):
-                    roll = str(self.roller.roll(die.size))
-                    if roll == '1':
-                        roll = '**(1)**'
-                    output += roll + ' '
+                    roll = {'value': self.roller.roll(die.size), 'size': die.size}
+                    roll_str = str(roll['value'])
+                    if roll_str == '1':
+                        roll_str = '**(1)**'
+                    else:
+                        rolls.append(roll)
+                    output += roll_str + ' '
                 separator = '\n'
+        if suggest_best:
+            if len(rolls) == 0:
+                output += '\nBotch!'
+            else:
+                # Calculate best total, then choose an effect die
+                rolls.sort(key=lambda roll: roll['value'], reverse=True)
+                best_total = rolls[0]['value']
+                best_addition = '{0}'.format(rolls[0]['value'])
+                best_effect = 'D4'
+                if len(rolls) > 1:
+                    best_total += rolls[1]['value']
+                    best_addition = '{0} + {1}'.format(best_addition, rolls[1]['value'])
+                    if len(rolls) > 2:
+                        resorted_rolls = sorted(rolls[2:], key=lambda roll: roll['size'], reverse=True)
+                        best_effect = 'D{0}'.format(resorted_rolls[0]['size'])
+                output += '\nBest Total: {0} ({1}) with Effect: {2}'.format(best_total, best_addition, best_effect)
+
+                # Find best effect die, then chooose best total
+                rolls.sort(key=lambda roll: roll['value'])
+                rolls.sort(key=lambda roll: roll['size'], reverse=True)
+                best_total = rolls[0]['value']
+                best_addition = '{0}'.format(rolls[0]['value'])
+                best_effect = 'D4'
+                if len(rolls) > 1:
+                    best_total += rolls[1]['value']
+                    best_addition = '{0} + {1}'.format(best_addition, rolls[1]['value'])
+                    if len(rolls) > 2:
+                        best_effect = 'D{0}'.format(rolls[0]['size'])
+                        resorted_rolls = sorted(rolls[1:], key=lambda roll: roll['value'], reverse=True)
+                        best_total = resorted_rolls[0]['value'] + resorted_rolls[1]['value']
+                        best_addition = '{0} + {1}'.format(resorted_rolls[0]['value'], resorted_rolls[1]['value'])
+                output += ' | Best Effect: {0} with Total: {1} ({2})'.format(best_effect, best_total, best_addition)
         return output
 
     def output(self):
@@ -583,10 +622,10 @@ class DicePools:
             raise CortexError(NOT_EXIST_ERROR, 'pool')
         return self.pools[group].temporary_copy()
 
-    def roll(self, group):
+    def roll(self, group, suggest_best=False):
         """Roll all the dice in a certain pool and return the results."""
 
-        return self.pools[group].roll()
+        return self.pools[group].roll(suggest_best)
 
     def output(self):
         """Return a formatted summary of all the pools in this object."""
@@ -837,6 +876,14 @@ class CortexGame:
             value = row['VALUE']
         return value
 
+    def get_option_as_bool(self, key):
+        as_bool = False
+        value_str = self.get_option(key)
+        if value_str:
+            if value_str == 'on':
+                as_bool = True
+        return as_bool
+
     def set_option(self, key, value):
         prior = self.get_option(key)
         if not prior:
@@ -1083,6 +1130,8 @@ class CortexPal(commands.Cog):
             if not args:
                 await ctx.send_help("roll")
             else:
+                game = self.get_game_info(ctx)
+                suggest_best = game.get_option_as_bool(BEST_OPTION)
                 separated = separate_dice_and_name(args)
                 ignored_strings = separated['name']
                 dice = separated['dice']
@@ -1093,7 +1142,7 @@ class CortexPal(commands.Cog):
                 """
                 pool = DicePool(self.roller, None, incoming_dice=dice)
                 echo_line = 'Rolling: {0}\n'.format(pool.output())
-                await ctx.send(echo_line + pool.roll())
+                await ctx.send(echo_line + pool.roll(suggest_best))
         except CortexError as err:
             await ctx.send(err)
         except:
@@ -1122,6 +1171,7 @@ class CortexPal(commands.Cog):
                 update_pin = False
                 game = self.get_game_info(ctx)
                 game.update_activity()
+                suggest_best = game.get_option_as_bool(BEST_OPTION)
                 separated = separate_dice_and_name(args[1:])
                 dice = separated['dice']
                 name = separated['name']
@@ -1137,7 +1187,7 @@ class CortexPal(commands.Cog):
                 elif args[0] == 'roll':
                     temp_pool = game.pools.temporary_copy(name)
                     temp_pool.add(dice)
-                    output = temp_pool.roll()
+                    output = temp_pool.roll(suggest_best)
                 else:
                     raise CortexError(INSTRUCTION_ERROR, args[0], '$pool')
                 if update_pin and game.pinned_message:
@@ -1359,6 +1409,8 @@ class CortexPal(commands.Cog):
 
         For example:
         $option prefix ! (change the command prefix to ! instead of $)
+        $option best on (turn on suggestions for best total and effect)
+        $option best off (turn off suggestions for best total and effect)
         """
         game = self.get_game_info(ctx)
         game.update_activity()
@@ -1368,12 +1420,18 @@ class CortexPal(commands.Cog):
             if not args:
                 await ctx.send_help("option")
             else:
-                if args[0] == 'prefix':
+                if args[0] == PREFIX_OPTION:
                     if len(args[1]) > 1:
                         output = 'Prefix must be a single character.'
                     else:
-                        game.set_option('prefix', args[1])
+                        game.set_option(PREFIX_OPTION, args[1])
                         output = 'Prefix set to {0}'.format(args[1])
+                elif args[0] == BEST_OPTION:
+                    if args[1] == 'on' or args[1] == 'off':
+                        game.set_option(BEST_OPTION, args[1])
+                        output = 'Option to suggest best total and effect is now {0}.'.format(args[1])
+                    else:
+                        output = 'You may only set this option to "on" or "off".'
                 await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
