@@ -44,7 +44,7 @@ UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 PREFIX_OPTION = 'prefix'
 BEST_OPTION = 'best'
 
-ABOUT_TEXT = 'CortexPal v1.2: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v1.2.1: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -517,32 +517,33 @@ class DicePool:
             else:
                 # Calculate best total, then choose an effect die
                 rolls.sort(key=lambda roll: roll['value'], reverse=True)
-                best_total = rolls[0]['value']
-                best_addition = '{0}'.format(rolls[0]['value'])
-                best_effect = 'D4'
+                best_total_1 = rolls[0]['value']
+                best_addition_1 = '{0}'.format(rolls[0]['value'])
+                best_effect_1 = 'D4'
                 if len(rolls) > 1:
-                    best_total += rolls[1]['value']
-                    best_addition = '{0} + {1}'.format(best_addition, rolls[1]['value'])
+                    best_total_1 += rolls[1]['value']
+                    best_addition_1 = '{0} + {1}'.format(best_addition_1, rolls[1]['value'])
                     if len(rolls) > 2:
                         resorted_rolls = sorted(rolls[2:], key=lambda roll: roll['size'], reverse=True)
-                        best_effect = 'D{0}'.format(resorted_rolls[0]['size'])
-                output += '\nBest Total: {0} ({1}) with Effect: {2}'.format(best_total, best_addition, best_effect)
+                        best_effect_1 = 'D{0}'.format(resorted_rolls[0]['size'])
+                output += '\nBest Total: {0} ({1}) with Effect: {2}'.format(best_total_1, best_addition_1, best_effect_1)
 
                 # Find best effect die, then chooose best total
                 rolls.sort(key=lambda roll: roll['value'])
                 rolls.sort(key=lambda roll: roll['size'], reverse=True)
-                best_total = rolls[0]['value']
-                best_addition = '{0}'.format(rolls[0]['value'])
-                best_effect = 'D4'
+                best_total_2 = rolls[0]['value']
+                best_addition_2 = '{0}'.format(rolls[0]['value'])
+                best_effect_2 = 'D4'
                 if len(rolls) > 1:
-                    best_total += rolls[1]['value']
-                    best_addition = '{0} + {1}'.format(best_addition, rolls[1]['value'])
+                    best_total_2 += rolls[1]['value']
+                    best_addition_2 = '{0} + {1}'.format(best_addition_2, rolls[1]['value'])
                     if len(rolls) > 2:
-                        best_effect = 'D{0}'.format(rolls[0]['size'])
+                        best_effect_2 = 'D{0}'.format(rolls[0]['size'])
                         resorted_rolls = sorted(rolls[1:], key=lambda roll: roll['value'], reverse=True)
-                        best_total = resorted_rolls[0]['value'] + resorted_rolls[1]['value']
-                        best_addition = '{0} + {1}'.format(resorted_rolls[0]['value'], resorted_rolls[1]['value'])
-                output += ' | Best Effect: {0} with Total: {1} ({2})'.format(best_effect, best_total, best_addition)
+                        best_total_2 = resorted_rolls[0]['value'] + resorted_rolls[1]['value']
+                        best_addition_2 = '{0} + {1}'.format(resorted_rolls[0]['value'], resorted_rolls[1]['value'])
+                if best_effect_1 != best_effect_1 or best_total_1 != best_total_2:
+                    output += ' | Best Effect: {0} with Total: {1} ({2})'.format(best_effect_2, best_total_2, best_addition_2)
         return output
 
     def output(self):
