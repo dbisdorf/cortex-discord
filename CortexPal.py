@@ -39,12 +39,15 @@ HAS_NONE_ERROR = '{0} doesn\'t have any {1}.'
 HAS_ONLY_ERROR = '{0} only has {1} {2}.'
 INSTRUCTION_ERROR = '`{0}` is not a valid instruction for the `{1}` command.'
 UNKNOWN_COMMAND_ERROR = 'That\'s not a valid command.'
+JOIN_ERROR = 'The #{0} channel does not allow other channels to join. Future commands apply only to this channel.'
 UNEXPECTED_ERROR = 'Oops. A software error interrupted this command.'
 
 PREFIX_OPTION = 'prefix'
 BEST_OPTION = 'best'
+JOIN_OPTION = 'join'
 
-ABOUT_TEXT = 'CortexPal v1.2.1: a Discord bot for Cortex Prime RPG players.'
+GAME_INFO_HEADER = '**Cortex Game Information**'
+ABOUT_TEXT = 'CortexPal v1.3: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -414,7 +417,6 @@ class DicePool:
 
         self.db_guid = uuid.uuid1().hex
         self.db_parent = db_parent
-        logging.debug('going to store DicePool guid {0} grp {1} parent {2}'.format(self.db_guid, self.group, self.db_parent.db_guid))
         cursor.execute("INSERT INTO DICE_COLLECTION (GUID, CATEGORY, GRP, PARENT_GUID) VALUES (?, 'pool', ?, ?)", (self.db_guid, self.group, self.db_parent.db_guid))
         db.commit()
 
@@ -807,6 +809,8 @@ class CortexGame:
 
     def __init__(self, roller, server, channel):
         self.roller = roller
+        self.server = server
+        self.channel = channel
         self.pinned_message = None
 
         cursor.execute('SELECT * FROM GAME WHERE SERVER=:server AND CHANNEL=:channel', {"server":server, "channel":channel})
@@ -842,7 +846,7 @@ class CortexGame:
     def output(self):
         """Return a report of all of the game's traits."""
 
-        output = '**Cortex Game Information**\n'
+        output = GAME_INFO_HEADER + '\n'
         if not self.assets.is_empty():
             output += '\n**Assets**\n'
             output += self.assets.output_all()
@@ -868,6 +872,9 @@ class CortexGame:
             output += self.xp.output_all()
             output += '\n'
         return output
+
+    def get_channel(self):
+        return self.channel
 
     def get_option(self, key):
         value = None
@@ -953,16 +960,34 @@ class CortexPal(commands.Cog):
         self.last_command_time = None
         self.roller = Roller()
 
-    def get_game_info(self, context):
+    def get_game_info(self, context, suppress_join=False):
         """Match a server and channel to a Cortex game."""
         game_info = None
+        fallback_game = None
         game_key = [context.guild.id, context.message.channel.id]
-        for existing_game in self.games:
-            if game_key == existing_game[0]:
-                game_info = existing_game[1]
-        if not game_info:
-            game_info = CortexGame(self.roller, context.guild.id, context.message.channel.id)
-            self.games.append([game_key, game_info])
+        joined_channel = None
+        while not game_info:
+            for existing_game in self.games:
+                if game_key == existing_game[0]:
+                    game_info = existing_game[1]
+            if not game_info:
+                game_info = CortexGame(self.roller, game_key[0], game_key[1])
+                self.games.append([game_key, game_info])
+            if joined_channel:
+                if game_info.get_option(JOIN_OPTION) != 'on':
+                    joined_channel_name = 'other'
+                    for channel in context.guild.channels:
+                        if channel.id == game_key[1]:
+                            joined_channel_name = channel.name
+                    game_info = fallback_game
+                    game_info.set_option(JOIN_OPTION, 'off')
+                    raise CortexError(JOIN_ERROR, joined_channel_name)
+            elif not suppress_join:
+                joined_channel = game_info.get_option(JOIN_OPTION)
+                if joined_channel and joined_channel != 'on' and joined_channel != 'off':
+                    fallback_game = game_info
+                    game_info = None
+                    game_key = [context.guild.id, int(joined_channel)]
         return game_info
 
     @commands.Cog.listener()
@@ -995,9 +1020,20 @@ class CortexPal(commands.Cog):
     async def info(self, ctx):
         """Display all game information."""
 
-        game = self.get_game_info(ctx)
-        game.update_activity()
-        await ctx.send(game.output())
+        try:
+            game = self.get_game_info(ctx)
+            game.update_activity()
+            output = game.output()
+            if game.get_channel() != ctx.message.channel.id:
+                for channel in ctx.guild.channels:
+                    if channel.id == game.get_channel():
+                        output = output.replace(GAME_INFO_HEADER, GAME_INFO_HEADER + '\n(from channel #{0})'.format(channel.name))
+            await ctx.send(output)
+        except CortexError as err:
+            await ctx.send(err)
+        except:
+            logging.error(traceback.format_exc())
+            await ctx.send(UNEXPECTED_ERROR)
 
     @commands.command()
     async def pin(self, ctx):
@@ -1412,6 +1448,9 @@ class CortexPal(commands.Cog):
         $option prefix ! (change the command prefix to ! instead of $)
         $option best on (turn on suggestions for best total and effect)
         $option best off (turn off suggestions for best total and effect)
+        $option join on (allow other channels to join this channel)
+        $option join off (break and prohibit joins between this channel and other channels)
+        $option join #other-channel (all commands from this channel apply to the game in #other-channel)
         """
         game = self.get_game_info(ctx)
         game.update_activity()
@@ -1433,6 +1472,20 @@ class CortexPal(commands.Cog):
                         output = 'Option to suggest best total and effect is now {0}.'.format(args[1])
                     else:
                         output = 'You may only set this option to "on" or "off".'
+                elif args[0] == JOIN_OPTION:
+                    game = self.get_game_info(ctx, True)
+                    if args[1] == 'on':
+                        game.set_option(JOIN_OPTION, 'on')
+                        output = 'Other channels may now join this channel.'
+                    elif args[1] == 'off':
+                        game.set_option(JOIN_OPTION, 'off')
+                        output = 'This channel now does not join or accept joins from other channels.'
+                    elif ctx.message.channel_mentions:
+                        game.set_option(JOIN_OPTION, ctx.message.channel_mentions[0].id)
+                        joined_game = self.get_game_info(ctx)
+                        output = 'Joining the #{0} channel.'.format(ctx.message.channel_mentions[0].name)
+                    else:
+                        output = 'You may only set this option to "on" or "off" or the name of another channel.'
                 await ctx.send(output)
         except CortexError as err:
             await ctx.send(err)
