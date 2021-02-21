@@ -1060,7 +1060,7 @@ class CortexPal(commands.Cog):
         $comp remove sun in your eyes (removes the Sun In Your Eyes complication)
         """
 
-        logging.info("comp command invoked")
+        logging.debug("comp command invoked")
         try:
             if not args:
                 await ctx.send_help("comp")
@@ -1112,7 +1112,7 @@ class CortexPal(commands.Cog):
         $pp clear alice (clears Alice from plot point lists)
         """
 
-        logging.info("pp command invoked")
+        logging.debug("pp command invoked")
         try:
             if not args:
                 await ctx.send_help("pp")
@@ -1161,7 +1161,7 @@ class CortexPal(commands.Cog):
         $roll D6 Mind D10 Navigation D6 Pirate (rolls 2D6 and a D10, ignoring the trait names)
         """
 
-        logging.info("roll command invoked")
+        logging.debug("roll command invoked")
         results = {}
         try:
             if not args:
@@ -1199,7 +1199,7 @@ class CortexPal(commands.Cog):
         $pool clear doom (clears the entire Doom pool)
         """
 
-        logging.info("pool command invoked")
+        logging.debug("pool command invoked")
         try:
             if not args:
                 await ctx.send_help("pool")
@@ -1250,7 +1250,7 @@ class CortexPal(commands.Cog):
         $stress clear fin (clears all of Fin's stress)
         """
 
-        logging.info("stress command invoked")
+        logging.debug("stress command invoked")
         try:
             if not args:
                 await ctx.send_help("stress")
@@ -1311,7 +1311,7 @@ class CortexPal(commands.Cog):
         $asset remove jetpack (removes the Jetpack asset)
         """
 
-        logging.info("asset command invoked")
+        logging.debug("asset command invoked")
         output = ''
         try:
             if not args:
@@ -1364,7 +1364,7 @@ class CortexPal(commands.Cog):
         $xp clear alice (clears Alice from experience point lists)
         """
 
-        logging.info("xp command invoked")
+        logging.debug("xp command invoked")
         try:
             if not args:
                 await ctx.send_help("xp")
@@ -1404,7 +1404,7 @@ class CortexPal(commands.Cog):
         Reset all game data for a channel.
         """
 
-        logging.info("clean command invoked")
+        logging.debug("clean command invoked")
         try:
             game = self.get_game_info(ctx)
             game.update_activity()
