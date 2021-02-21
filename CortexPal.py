@@ -47,7 +47,7 @@ BEST_OPTION = 'best'
 JOIN_OPTION = 'join'
 
 GAME_INFO_HEADER = '**Cortex Game Information**'
-ABOUT_TEXT = 'CortexPal v1.3: a Discord bot for Cortex Prime RPG players.'
+ABOUT_TEXT = 'CortexPal v1.3.1: a Discord bot for Cortex Prime RPG players.'
 
 # Read configuration.
 
@@ -57,7 +57,7 @@ config.read('cortexpal.ini')
 # Set up logging.
 
 logHandler = logging.handlers.TimedRotatingFileHandler(filename=config['logging']['file'], when='D', backupCount=9)
-logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.DEBUG)
+logging.basicConfig(handlers=[logHandler], format='%(asctime)s %(message)s', level=logging.INFO)
 
 # Set up database.
 
@@ -169,7 +169,7 @@ def fetch_all_dice_for_parent(db_parent):
 def purge():
     """Scan for old unused games and remove them."""
 
-    logging.debug('Running the purge')
+    logging.info('Running the purge')
     purge_time = datetime.now(timezone.utc) - timedelta(days=PURGE_DAYS)
     games_to_purge = []
     cursor.execute('SELECT * FROM GAME WHERE ACTIVITY<:purge_time', {'purge_time':purge_time})
@@ -198,7 +198,7 @@ def purge():
         cursor.execute('DELETE FROM RESOURCE WHERE PARENT_GUID=:guid', {'guid':game_guid})
         cursor.execute('DELETE FROM GAME WHERE GUID=:guid', {'guid':game_guid})
         db.commit()
-    logging.debug('Deleted %d games', len(games_to_purge))
+    logging.info('Deleted %d games', len(games_to_purge))
 
 class Die:
     """A single die, or a set of dice of the same size."""
