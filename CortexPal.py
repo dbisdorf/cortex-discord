@@ -49,6 +49,8 @@ JOIN_OPTION = 'join'
 GAME_INFO_HEADER = '**Cortex Game Information**'
 ABOUT_TEXT = 'CortexPal v1.3.1: a Discord bot for Cortex Prime RPG players.'
 
+SHUTDOWN_TEXT = '**Warning:** Due to technical changes at Discord, this version of CortexPal will shut down at the end of April 2022. You may instead switch to the CortexPal2000 bot. Find instructions for the new bot here: https://github.com/dbisdorf/cortex-discord-2/blob/main/README.md'
+
 # Read configuration.
 
 config = configparser.ConfigParser()
@@ -956,6 +958,7 @@ class CortexPal(commands.Cog):
         """Initialize."""        
         self.bot = bot
         self.games = []
+        self.warnings = []
         self.startup_time = datetime.now(timezone.utc)
         self.last_command_time = None
         self.roller = Roller()
@@ -1008,6 +1011,7 @@ class CortexPal(commands.Cog):
             # Run purge after midnight
             if now.day != self.last_command_time.day:
                 run_purge = True
+                self.warnings = []
         else:
             # Run purge on first command after startup
             run_purge = True
@@ -1015,6 +1019,10 @@ class CortexPal(commands.Cog):
             purge()
             self.games = []
         self.last_command_time = now
+        channel_key = [ctx.guild.id, ctx.message.channel.id]
+        if channel_key not in self.warnings:
+            await ctx.send(SHUTDOWN_TEXT)
+            self.warnings.append(channel_key)
 
     @commands.command()
     async def info(self, ctx):
