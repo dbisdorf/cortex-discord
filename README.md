@@ -5,6 +5,8 @@ This bot uses the discord.py library (https://pypi.org/project/discord.py/).
 
 Feel free to contact me with any bug reports, or, if you prefer, you can file them here.
 
+**Warning:** Because of new Discord restrictions (https://support-dev.discord.com/hc/en-us/articles/4404772028055-Message-Content-Access-Deprecation-for-Verified-Bots), the tech used in this bot won't work after April 2022. Consider using CortexPal2000 instead (https://github.com/dbisdorf/cortex-discord-2).
+
 ## Inviting
 
 As of April 2020, I have a public instance of this bot running 24/7. You can invite this bot to your Discord server by browsing to this URL: https://discordapp.com/api/oauth2/authorize?client_id=694239819454480445&permissions=10240&scope=bot
